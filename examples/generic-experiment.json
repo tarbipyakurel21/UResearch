@@ -1,0 +1,110 @@
+[
+  {
+    "id": "exp_001",
+    "condition": "baseline",
+    "model": "ModelA",
+    "seed": 42,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.872,
+      "f1": 0.861,
+      "loss": 0.231
+    },
+    "config": {
+      "lr": 0.001,
+      "epochs": 10,
+      "batch_size": 32
+    },
+    "notes": "Initial baseline run"
+  },
+  {
+    "id": "exp_002",
+    "condition": "augmented",
+    "model": "ModelA",
+    "seed": 42,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.891,
+      "f1": 0.884,
+      "loss": 0.198
+    },
+    "config": {
+      "lr": 0.001,
+      "epochs": 10,
+      "batch_size": 32
+    },
+    "notes": "With data augmentation"
+  },
+  {
+    "id": "exp_003",
+    "condition": "baseline",
+    "model": "ModelB",
+    "seed": 42,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.843,
+      "f1": 0.839,
+      "loss": 0.267
+    },
+    "config": {
+      "lr": 0.0005,
+      "epochs": 15,
+      "batch_size": 64
+    },
+    "notes": null
+  },
+  {
+    "id": "exp_004",
+    "condition": "augmented",
+    "model": "ModelB",
+    "seed": 42,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.867,
+      "f1": 0.859,
+      "loss": 0.241
+    },
+    "config": {
+      "lr": 0.0005,
+      "epochs": 15,
+      "batch_size": 64
+    },
+    "notes": null
+  },
+  {
+    "id": "exp_005",
+    "condition": "baseline",
+    "model": "ModelA",
+    "seed": 123,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.869,
+      "f1": 0.855,
+      "loss": 0.244
+    },
+    "config": {
+      "lr": 0.001,
+      "epochs": 10,
+      "batch_size": 32
+    },
+    "notes": "Seed variation"
+  },
+  {
+    "id": "exp_006",
+    "condition": "augmented",
+    "model": "ModelA",
+    "seed": 123,
+    "split": "test",
+    "metrics": {
+      "accuracy": 0.886,
+      "f1": 0.879,
+      "loss": 0.204
+    },
+    "config": {
+      "lr": 0.001,
+      "epochs": 10,
+      "batch_size": 32
+    },
+    "notes": "Seed variation with augmentation"
+  }
+]
