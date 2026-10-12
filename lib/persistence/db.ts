@@ -9,8 +9,9 @@ import type {
 import type { VisualizationConfig } from "@/types/visualization";
 import type { LLMFieldMapping } from "@/types/llm";
 import type { EEGFieldMapping } from "@/types/eeg";
+import type { Paper } from "@/types/paper";
 
-export const IDB_VERSION = 1;
+export const IDB_VERSION = 2;
 export const IDB_NAME = "researchbench";
 
 interface AppSettings {
@@ -81,6 +82,10 @@ export interface RBSchema extends DBSchema {
   settings: {
     key: string;
     value: AppSettings;
+  };
+  papers: {
+    key: string;
+    value: Paper;
   };
 }
 
@@ -154,6 +159,9 @@ export async function getDB(): Promise<IDBPDatabase<RBSchema>> {
       // Settings
       if (!db.objectStoreNames.contains("settings")) {
         db.createObjectStore("settings", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("papers")) {
+        db.createObjectStore("papers", { keyPath: "id" });
       }
     },
   });

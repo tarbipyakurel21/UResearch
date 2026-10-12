@@ -7,3 +7,4 @@ export * from "./records";
 export * from "./settings";
 export * from "./visualizations";
 export * from "./workspaces";
+export * from "./papers";

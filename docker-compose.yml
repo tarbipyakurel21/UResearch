@@ -1,0 +1,71 @@
+services:
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: uresearch
+      S3_SECRET_ACCESS_KEY: uresearch-secret
+      S3_BUCKET: uresearch-papers
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+  worker:
+    build: ./backend
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: uresearch
+      S3_SECRET_ACCESS_KEY: uresearch-secret
+      S3_BUCKET: uresearch-papers
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    volumes:
+      - ./backend:/app
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: uresearch
+      POSTGRES_PASSWORD: uresearch
+      POSTGRES_DB: uresearch
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: uresearch
+      MINIO_ROOT_PASSWORD: uresearch-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "until mc alias set local http://minio:9000 uresearch uresearch-secret; do sleep 1; done;
+      mc mb --ignore-existing local/uresearch-papers"
+
+volumes:
+  postgres-data:
+  minio-data:
