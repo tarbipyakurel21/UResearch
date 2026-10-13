@@ -1,4 +1,4 @@
-docker compose up --buildexport type PaperKind = "text" | "pdf";
+export type PaperKind = "text" | "pdf";
 
 export interface Paper {
   id: string;
