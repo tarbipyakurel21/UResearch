@@ -8,3 +8,4 @@ export * from "./settings";
 export * from "./visualizations";
 export * from "./workspaces";
 export * from "./papers";
+export * from "./projects";

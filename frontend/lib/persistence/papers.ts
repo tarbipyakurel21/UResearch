@@ -16,3 +16,8 @@ export async function listPapers(): Promise<Paper[]> {
   const papers = await db.getAll("papers");
   return papers.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
+
+export async function deletePaper(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("papers", id);
+}
