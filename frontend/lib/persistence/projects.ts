@@ -2,7 +2,7 @@ import { getDB } from "./db";
 import type { ResearchProject } from "@/types/paper";
 import { SAMPLE_PROJECTS } from "../sample-papers";
 
-const PROJECTS_KEY = "openpaper_projects";
+const PROJECTS_KEY = "uresearch_projects";
 
 export async function listProjects(): Promise<ResearchProject[]> {
   try {

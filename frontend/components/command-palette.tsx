@@ -59,13 +59,11 @@ export function CommandPalette({ open, onClose, onOpenImport }: CommandPalettePr
   if (!open) return null;
 
   const navItems = [
-    { label: "Home / Overview", href: "/overview", icon: Home, category: "Navigation" },
-    { label: "Research Library", href: "/papers", icon: BookOpen, category: "Navigation" },
-    { label: "Projects & Synthesis Matrix", href: "/projects", icon: FolderKanban, category: "Navigation" },
-    { label: "Ask AI / Literature Review", href: "/understand", icon: Sparkles, category: "Navigation" },
-    { label: "Discover Literature (arXiv)", href: "/discover", icon: Compass, category: "Navigation" },
-    { label: "Datasets & Records", href: "/data", icon: Database, category: "Workspace" },
-    { label: "Human Auditing Sessions", href: "/audit", icon: ScanSearch, category: "Workspace" },
+    { label: "Overview", href: "/overview", icon: Home, category: "Navigation" },
+    { label: "Visualize Data", href: "/visualize", icon: Database, category: "Navigation" },
+    { label: "Datasets & Records", href: "/data", icon: Database, category: "Navigation" },
+    { label: "Papers & AI (ChatGPT View)", href: "/papers", icon: BookOpen, category: "Navigation" },
+    { label: "Human Audit Sessions", href: "/audit", icon: ScanSearch, category: "Navigation" },
   ];
 
   const filteredNav = navItems.filter((item) =>
@@ -321,7 +319,7 @@ export function CommandPalette({ open, onClose, onOpenImport }: CommandPalettePr
           }}
         >
           <span>Use <kbd style={{ padding: "1px 4px", border: "1px solid var(--border-strong)", borderRadius: 3 }}>↑</kbd> <kbd style={{ padding: "1px 4px", border: "1px solid var(--border-strong)", borderRadius: 3 }}>↓</kbd> to navigate</span>
-          <span>Open Paper · Local Research Workbench</span>
+          <span>UResearch · Local Data & Literature Workbench</span>
         </div>
       </div>
     </div>

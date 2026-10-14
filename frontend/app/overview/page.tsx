@@ -4,368 +4,285 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  BarChart3,
   BookOpen,
-  CheckCircle2,
-  ChevronRight,
-  Compass,
   Database,
   FilePlus,
-  FolderKanban,
-  Headphones,
-  Highlighter,
   Plus,
   ScanSearch,
   ShieldCheck,
   Sparkles,
-  Star,
-  Telescope,
+  Table,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PaperImportModal } from "@/components/paper-import-modal";
 import { useLocalData } from "@/hooks/use-local-data";
 import { listPapers } from "@/lib/persistence/papers";
-import { listProjects } from "@/lib/persistence/projects";
-import { SAMPLE_PAPERS } from "@/lib/sample-papers";
-import type { Paper, ResearchProject } from "@/types/paper";
+import type { Paper } from "@/types/paper";
 
 export default function OverviewPage() {
   const { datasets, sessions, loading } = useLocalData();
   const [papers, setPapers] = useState<Paper[]>([]);
-  const [projects, setProjects] = useState<ResearchProject[]>([]);
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      const [pList, projList] = await Promise.all([listPapers(), listProjects()]);
-      setPapers(pList);
-      setProjects(projList);
-    }
-    void load();
+    void listPapers().then(setPapers);
   }, []);
 
-  const totalAnnotations = papers.reduce((sum, p) => sum + (p.annotations?.length ?? 0), 0);
+  const totalRecords = datasets.reduce((sum, d) => sum + d.record_count, 0);
   const activeSessions = sessions.filter((s) => s.status === "active");
 
   return (
     <div className="content">
       <PageHeader
-        eyebrow="OpenPaper Workbench"
-        title="Research Library & Synthesis Hub"
-        description="Your local-first workbench for managing research literature, annotating PDFs, running cross-paper extraction matrices, and conducting human data audits."
+        eyebrow="UResearch Workspace"
+        title="Data Visualization & Literature"
+        description="A private, local-first workbench to visualize your research datasets, chart distributions, and query academic papers side-by-side with AI."
         actions={
           <div className="actions">
-            <button className="button primary" onClick={() => setImportModalOpen(true)}>
-              <FilePlus size={14} /> Import Paper
-            </button>
-            <Link className="button" href="/projects">
-              <FolderKanban size={14} /> New Project
+            <Link className="button primary" href="/visualize">
+              <BarChart3 size={14} /> Open Data Visualizer
+            </Link>
+            <Link className="button" href="/data/import">
+              <Plus size={14} /> Import Dataset
             </Link>
           </div>
         }
       />
 
-      {/* Local-first banner */}
-      <div className="notice" style={{ marginBottom: 24 }}>
-        <ShieldCheck size={16} style={{ color: "var(--success)", flexShrink: 0 }} />
+      {/* Local storage status pill */}
+      <div className="notice" style={{ marginBottom: 20 }}>
+        <ShieldCheck size={15} style={{ color: "var(--success)", flexShrink: 0 }} />
         <span>
-          <strong>Private Local-First Storage:</strong> Your research papers, PDF annotations, extraction matrices, and audit records stay entirely inside this browser.
+          <strong>Private & Local:</strong> Your datasets, charts, and papers remain securely stored inside your local browser database.
         </span>
       </div>
 
       {/* Hero Stats */}
-      <div className="grid cols-4" style={{ marginBottom: 24, gap: 14 }}>
+      <div className="grid cols-4" style={{ marginBottom: 24 }}>
         <div className="panel stat">
           <div className="stat-label">
-            <BookOpen size={14} style={{ color: "var(--accent)" }} /> Papers in Library
+            <Database size={14} style={{ color: "var(--accent)" }} /> Local Datasets
+          </div>
+          <div className="stat-value">{datasets.length}</div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            {totalRecords.toLocaleString()} stored records
+          </div>
+        </div>
+
+        <div className="panel stat">
+          <div className="stat-label">
+            <BarChart3 size={14} style={{ color: "#8b5cf6" }} /> Visualizations
+          </div>
+          <div className="stat-value">{datasets.length > 0 ? "Ready" : "0"}</div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            Bar charts, scatter plots & aggregations
+          </div>
+        </div>
+
+        <div className="panel stat">
+          <div className="stat-label">
+            <BookOpen size={14} style={{ color: "#f59e0b" }} /> Research Papers
           </div>
           <div className="stat-value">{papers.length}</div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            {papers.filter((p) => p.reading_status === "starred").length} starred papers
+          <div className="hint" style={{ marginTop: 4 }}>
+            Side-by-side ChatGPT reading
           </div>
         </div>
 
         <div className="panel stat">
           <div className="stat-label">
-            <FolderKanban size={14} style={{ color: "#8b5cf6" }} /> Research Projects
+            <ScanSearch size={14} style={{ color: "#10b981" }} /> Audit Sessions
           </div>
-          <div className="stat-value">{projects.length}</div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            With comparative extraction matrices
-          </div>
-        </div>
-
-        <div className="panel stat">
-          <div className="stat-label">
-            <Highlighter size={14} style={{ color: "#f59e0b" }} /> Grounded Highlights
-          </div>
-          <div className="stat-value">{totalAnnotations}</div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            Margin notes & verifiable quotes
-          </div>
-        </div>
-
-        <div className="panel stat">
-          <div className="stat-label">
-            <Database size={14} style={{ color: "#10b981" }} /> Datasets & Audits
-          </div>
-          <div className="stat-value">
-            {datasets.reduce((n, d) => n + d.record_count, 0).toLocaleString()}
-          </div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            {activeSessions.length} active audit sessions
+          <div className="stat-value">{activeSessions.length}</div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            Active human validation reviews
           </div>
         </div>
       </div>
 
-      {/* Quick Launchpad */}
-      <div
-        className="panel"
-        style={{
-          padding: "16px 20px",
-          marginBottom: 24,
-          background: "linear-gradient(to right, var(--bg-panel), var(--bg-subtle))",
-        }}
-      >
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-muted)", marginBottom: 12 }}>
-          Quick Workbenches
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <button
-            onClick={() => setImportModalOpen(true)}
-            style={{
-              padding: "12px 14px",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 8,
-              background: "var(--bg-panel)",
-              textAlign: "left",
-              cursor: "pointer",
-              transition: "transform 0.1s, border-color 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13, marginBottom: 4 }}>
-              <FilePlus size={16} style={{ color: "var(--accent)" }} /> Import Paper PDF
+      {/* Core Workbenches Navigation Cards */}
+      <div className="grid cols-3" style={{ marginBottom: 24 }}>
+        <Link
+          href="/visualize"
+          className="panel"
+          style={{
+            padding: 18,
+            textDecoration: "none",
+            color: "inherit",
+            transition: "border-color 0.15s, transform 0.1s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: "var(--secondary)",
+                display: "grid",
+                placeItems: "center",
+                color: "var(--accent)",
+              }}
+            >
+              <BarChart3 size={18} />
             </div>
-            <div className="hint">Upload PDF, fetch by arXiv ID, or import Zotero JSON.</div>
-          </button>
+            <div>
+              <h3 style={{ fontSize: 14 }}>Data Visualizer</h3>
+              <span className="hint">Interactive chart generator</span>
+            </div>
+          </div>
+          <p style={{ margin: "0 0 12px", fontSize: 12 }}>
+            Plot categorical and numerical fields, configure groupings, calculate sum/median/mean, and drill down into records.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+            Launch visualizer <ArrowRight size={13} />
+          </div>
+        </Link>
 
-          <Link
-            href="/understand"
-            style={{
-              padding: "12px 14px",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 8,
-              background: "var(--bg-panel)",
-              textDecoration: "none",
-              color: "inherit",
-              transition: "border-color 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13, marginBottom: 4 }}>
-              <Sparkles size={16} style={{ color: "#8b5cf6" }} /> Ask Literature Copilot
+        <Link
+          href="/data"
+          className="panel"
+          style={{
+            padding: 18,
+            textDecoration: "none",
+            color: "inherit",
+            transition: "border-color 0.15s, transform 0.1s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: "var(--secondary)",
+                display: "grid",
+                placeItems: "center",
+                color: "#10b981",
+              }}
+            >
+              <Database size={18} />
             </div>
-            <div className="hint">Synthesize multi-paper evidence with verified citations.</div>
-          </Link>
+            <div>
+              <h3 style={{ fontSize: 14 }}>Dataset Explorer</h3>
+              <span className="hint">Tabular inspection & import</span>
+            </div>
+          </div>
+          <p style={{ margin: "0 0 12px", fontSize: 12 }}>
+            Import CSV, TSV, JSON, JSONL, or synthetic benchmarks. Inspect schema definitions and filter data rows.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+            Explore records <ArrowRight size={13} />
+          </div>
+        </Link>
 
-          <Link
-            href="/projects"
-            style={{
-              padding: "12px 14px",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 8,
-              background: "var(--bg-panel)",
-              textDecoration: "none",
-              color: "inherit",
-              transition: "border-color 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13, marginBottom: 4 }}>
-              <FolderKanban size={16} style={{ color: "#0ea5e9" }} /> Extraction Matrix
+        <Link
+          href="/papers"
+          className="panel"
+          style={{
+            padding: 18,
+            textDecoration: "none",
+            color: "inherit",
+            transition: "border-color 0.15s, transform 0.1s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: "var(--secondary)",
+                display: "grid",
+                placeItems: "center",
+                color: "#8b5cf6",
+              }}
+            >
+              <Sparkles size={18} />
             </div>
-            <div className="hint">Compare methodology schemas and export to CSV.</div>
-          </Link>
-
-          <Link
-            href="/discover"
-            style={{
-              padding: "12px 14px",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 8,
-              background: "var(--bg-panel)",
-              textDecoration: "none",
-              color: "inherit",
-              transition: "border-color 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13, marginBottom: 4 }}>
-              <Compass size={16} style={{ color: "#f59e0b" }} /> Discover Literature
+            <div>
+              <h3 style={{ fontSize: 14 }}>Papers & ChatGPT</h3>
+              <span className="hint">Side-by-side reading & AI</span>
             </div>
-            <div className="hint">Search arXiv preprints and add papers in 1-click.</div>
-          </Link>
-        </div>
+          </div>
+          <p style={{ margin: "0 0 12px", fontSize: 12 }}>
+            Read literature on one side while having a full ChatGPT research assistant on the other side to synthesize evidence.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+            Open split workbench <ArrowRight size={13} />
+          </div>
+        </Link>
       </div>
 
-      {/* Two Column Section: Continue Reading & Active Projects */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
-        {/* Continue Reading Section */}
-        <section className="panel">
-          <div className="panel-head">
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <BookOpen size={16} style={{ color: "var(--accent)" }} />
-              <h2>Recent & Active Reading</h2>
-            </div>
-            <Link href="/papers" className="button ghost" style={{ fontSize: 12 }}>
-              View Library ({papers.length})
-            </Link>
-          </div>
-
-          <div className="list">
-            {papers.slice(0, 4).map((paper) => (
-              <div
-                key={paper.id}
-                className="list-row"
-                style={{
-                  gridTemplateColumns: "1fr auto",
-                  padding: "14px 18px",
-                  cursor: "pointer",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    <span className="badge primary" style={{ fontSize: 10 }}>
-                      {paper.kind.toUpperCase()}
-                    </span>
-                    {paper.reading_status === "starred" && (
-                      <Star size={13} fill="#eab308" style={{ color: "#eab308" }} />
-                    )}
-                    <span style={{ fontSize: 11, color: "var(--ink-muted)" }}>
-                      {paper.year ? `${paper.year} · ` : ""}
-                      {paper.authors.slice(0, 2).join(", ")}
-                    </span>
-                  </div>
-                  <strong style={{ fontSize: 14 }}>{paper.title}</strong>
-                  {paper.abstract && (
-                    <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 4, lineClamp: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 520 }}>
-                      {paper.abstract}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Link href={`/papers?id=${paper.id}`} className="button primary" style={{ fontSize: 12, padding: "5px 10px", minHeight: 30 }}>
-                    Read & Annotate <ChevronRight size={13} />
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Synthesis Projects Section */}
-        <section className="panel">
-          <div className="panel-head">
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <FolderKanban size={16} style={{ color: "#8b5cf6" }} />
-              <h2>Synthesis Projects</h2>
-            </div>
-            <Link href="/projects" className="button ghost" style={{ fontSize: 12 }}>
-              All ({projects.length})
-            </Link>
-          </div>
-
-          <div style={{ padding: 14, display: "grid", gap: 10 }}>
-            {projects.map((proj) => (
-              <Link
-                key={proj.id}
-                href={`/projects?id=${proj.id}`}
-                style={{
-                  display: "block",
-                  padding: "12px 14px",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: 6,
-                  textDecoration: "none",
-                  color: "inherit",
-                  background: "var(--bg-subtle)",
-                  transition: "border-color 0.15s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--border-strong)")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <strong style={{ fontSize: 13 }}>{proj.name}</strong>
-                  <span className="badge">{proj.paperIds.length} papers</span>
-                </div>
-                <div style={{ fontSize: 11, color: "var(--ink-muted)", marginBottom: 8 }}>
-                  {proj.description}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
-                  <span>Open Extraction Matrix</span> <ArrowRight size={12} />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Dataset Explorer & Audits */}
+      {/* Recent Datasets Table */}
       <section className="panel">
         <div className="panel-head">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Database size={16} style={{ color: "#10b981" }} />
-            <h2>Local Datasets & Human Auditing Workbenches</h2>
+            <Table size={16} style={{ color: "var(--foreground)" }} />
+            <h2>Your Research Datasets</h2>
           </div>
           <div className="actions">
-            <Link href="/data" className="button" style={{ fontSize: 12 }}>
-              Datasets
+            <Link className="button ghost" href="/data/import?sample=1" style={{ fontSize: 12 }}>
+              Load Sample Dataset
             </Link>
-            <Link href="/audit" className="button" style={{ fontSize: 12 }}>
-              Audit Sessions
+            <Link className="button" href="/data" style={{ fontSize: 12 }}>
+              View All ({datasets.length})
             </Link>
           </div>
         </div>
 
         {datasets.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center" }}>
-            <p style={{ margin: "0 0 12px", fontSize: 13 }}>
-              No dataset imported yet. You can import JSON, CSV, or explore synthetic benchmark data.
-            </p>
-            <Link className="button" href="/data/import?sample=1" style={{ fontSize: 12 }}>
-              Explore Sample Dataset
-            </Link>
+          <div className="empty">
+            <Database size={32} style={{ margin: "0 auto 10px", color: "var(--accent)" }} />
+            <h2>No dataset imported yet</h2>
+            <p>Import a CSV, TSV, or JSON file to start visualizing your data.</p>
+            <div className="actions" style={{ justifyContent: "center", marginTop: 14 }}>
+              <Link className="button primary" href="/data/import">
+                Import Dataset
+              </Link>
+              <Link className="button" href="/data/import?sample=1">
+                Load Benchmark Sample
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="list">
-            {datasets.slice(0, 4).map((d) => (
+            {datasets.slice(0, 5).map((d) => (
               <div className="list-row" key={d.id}>
                 <div>
                   <strong>{d.name}</strong>
                   <div className="hint mono">{d.source_filename}</div>
                 </div>
                 <span>{d.record_count.toLocaleString()} rows</span>
-                <span>{d.column_schemas.length} fields</span>
-                <span className="badge">{d.format}</span>
-                <Link className="button" href={`/data/${d.id}`} style={{ fontSize: 12, padding: "4px 8px" }}>
-                  Open
-                </Link>
+                <span>{d.column_schemas.length} columns</span>
+                <span className="badge">{d.format.toUpperCase()}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Link className="button primary" href={`/visualize`} style={{ height: 28, fontSize: 11, padding: "0 8px" }}>
+                    <BarChart3 size={12} /> Visualize
+                  </Link>
+                  <Link className="button ghost" href={`/data/${d.id}`} style={{ height: 28, fontSize: 11, padding: "0 8px" }}>
+                    Inspect
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* Global Paper Import Modal */}
+      {/* Paper Import Modal */}
       <PaperImportModal
-        open={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-        onPaperImported={(paper) => {
-          setPapers((prev) => [paper, ...prev]);
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onPaperImported={() => {
+          void listPapers().then(setPapers);
         }}
       />
     </div>

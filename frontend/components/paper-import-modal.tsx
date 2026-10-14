@@ -203,7 +203,7 @@ Empirical verification confirms competitive performance over prior baselines wit
             <BookOpen size={18} style={{ color: "var(--accent)" }} />
             <div>
               <h2 style={{ fontSize: 16 }}>Import Research Paper</h2>
-              <span className="hint">Store locally in your private OpenPaper workbench</span>
+              <span className="hint">Store locally in your private UResearch workspace</span>
             </div>
           </div>
           <button className="button ghost" onClick={onClose} style={{ padding: 4, minHeight: "auto" }}>
@@ -374,7 +374,7 @@ Empirical verification confirms competitive performance over prior baselines wit
           {tab === "sample" && (
             <div>
               <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-secondary)" }}>
-                Pre-load foundational papers into your OpenPaper library to immediately experience the split-pane reader, inline citations, and cross-paper synthesis:
+                Pre-load foundational papers into your UResearch library to explore side-by-side paper reading and AI chat:
               </p>
               <ul style={{ margin: "0 0 18px", paddingLeft: 20, fontSize: 13, lineHeight: 1.6 }}>
                 <li><strong>Attention Is All You Need</strong> (Transformer architecture, NeurIPS 2017)</li>

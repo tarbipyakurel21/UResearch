@@ -146,8 +146,7 @@ export function VisualizationWorkspace() {
     window.setTimeout(() => setMessage(""), 2500);
   }
 
-  if (loading) return <div className="content muted">Loading visualization workspace…</div>;
-  if (!datasets.length) return <div className="content"><div className="empty"><BarChart3 size={30} style={{ margin: "0 auto 12px", color: "var(--accent)" }} /><h2>Start with a dataset</h2><p>Import data before creating a visualization.</p><Link className="button primary" href="/data/import">Import dataset</Link></div></div>;
+  if (!datasets.length) return <div className="content"><div className="empty"><BarChart3 size={32} style={{ margin: "0 auto 12px", color: "var(--accent)" }} /><h2>Start with a dataset</h2><p>Import CSV, JSON, or explore the pre-built sample dataset to visualize your data.</p><div className="actions" style={{ justifyContent: "center", marginTop: 14 }}><Link className="button primary" href="/data/import">Import dataset</Link><Link className="button" href="/data/import?sample=1">Load Sample Benchmark</Link></div></div></div>;
   if (!config) return null;
 
   return <div className="content">
