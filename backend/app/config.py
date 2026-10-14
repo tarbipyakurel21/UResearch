@@ -8,10 +8,6 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://uresearch:uresearch@localhost:5432/uresearch"
     redis_url: str = "redis://localhost:6379/0"
-    s3_endpoint_url: str = "http://localhost:9000"
-    s3_access_key_id: str = "uresearch"
-    s3_secret_access_key: str = "uresearch-secret"
-    s3_bucket: str = "uresearch-papers"
     cors_origins: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

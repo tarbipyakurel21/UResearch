@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { BookOpen, Check, FileUp, Globe, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { generateId } from "@/lib/utils/ids";
 import { savePaper } from "@/lib/persistence/papers";
+import { useUploadThing } from "@/lib/uploadthing";
 import { parseZoteroExport } from "@/lib/zotero/import";
 import { SAMPLE_PAPERS } from "@/lib/sample-papers";
 import type { Paper } from "@/types/paper";
@@ -24,6 +25,7 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zoteroInputRef = useRef<HTMLInputElement>(null);
+  const { startUpload, isUploading } = useUploadThing("paperPdf");
 
   if (!open) return null;
 
@@ -32,28 +34,41 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
     setError("");
     setLoading(true);
     try {
-      let content = "";
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-      if (isPdf) {
-        content = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error("Failed to read PDF file."));
-          reader.readAsDataURL(file);
-        });
-      } else {
-        content = await file.text();
+      if (!isPdf) throw new Error("Please select a PDF file.");
+
+      const uploaded = await startUpload([file]);
+      const uploadedFile = uploaded?.[0];
+      if (!uploadedFile) throw new Error("UploadThing did not return an uploaded file.");
+
+      // Persist UploadThing metadata in PostgreSQL. The PDF bytes stay between
+      // the browser and UploadThing, so this request remains small.
+      const recordResponse = await fetch("/api/papers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: uploadedFile.key,
+          url: uploadedFile.ufsUrl,
+          filename: uploadedFile.name,
+          content_type: uploadedFile.type,
+          size: uploadedFile.size,
+        }),
+      });
+      if (!recordResponse.ok) {
+        throw new Error("The PDF uploaded, but its library record could not be saved.");
       }
 
       const paper: Paper = {
         id: generateId(),
-        title: file.name.replace(/\.(pdf|md|txt)$/i, "").replace(/[-_]/g, " "),
+        title: file.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " "),
         authors: ["Unknown Author"],
-        kind: isPdf ? "pdf" : "text",
-        content,
+        kind: "pdf",
+        // The reader iframe loads the public UploadThing URL directly.
+        content: uploadedFile.ufsUrl,
+        source_url: uploadedFile.ufsUrl,
         reading_status: "unread",
         progress: 0,
-        tags: [isPdf ? "PDF" : "Text"],
+        tags: ["PDF", "UploadThing"],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -293,7 +308,7 @@ Empirical verification confirms competitive performance over prior baselines wit
                 ref={fileInputRef}
                 type="file"
                 hidden
-                accept=".pdf,.md,.txt"
+                accept="application/pdf,.pdf"
                 onChange={(e) => void handleFileUpload(e.target.files?.[0])}
               />
               <div
@@ -307,7 +322,7 @@ Empirical verification confirms competitive performance over prior baselines wit
                 }}
                 onClick={() => fileInputRef.current?.click()}
               >
-                {loading ? (
+                {loading || isUploading ? (
                   <Loader2 size={32} className="animate-spin" style={{ margin: "0 auto 10px", color: "var(--accent)" }} />
                 ) : (
                   <Upload size={32} style={{ margin: "0 auto 10px", color: "var(--ink-muted)" }} />
@@ -315,7 +330,7 @@ Empirical verification confirms competitive performance over prior baselines wit
                 <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 4 }}>
                   Click to browse or drag & drop research paper
                 </div>
-                <div className="hint">Supports PDF, Markdown (.md), and Plain Text (.txt)</div>
+                <div className="hint">PDF only · uploaded securely with UploadThing (max 32 MB)</div>
               </div>
             </div>
           )}

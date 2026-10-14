@@ -28,6 +28,16 @@ class PaperRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UploadThingPaperCreate(BaseModel):
+    """Metadata returned by UploadThing after a browser-direct PDF upload."""
+
+    key: str = Field(min_length=1, max_length=1000)
+    url: str = Field(min_length=1, max_length=2000)
+    filename: str = Field(min_length=1, max_length=500)
+    content_type: str = Field(default="application/pdf", max_length=255)
+    size: int | None = Field(default=None, ge=0)
+
+
 class AnnotationCreate(BaseModel):
     quote: str = Field(min_length=1)
     note: str | None = None

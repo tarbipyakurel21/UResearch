@@ -15,10 +15,12 @@ import {
   Search,
   ShieldCheck,
   Sun,
+  User,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { CommandPalette } from "./command-palette";
 import { PaperImportModal } from "./paper-import-modal";
+import { AuthModal } from "./auth/auth-modal";
 import { listPapers } from "@/lib/persistence/papers";
 
 const navigationItems = [
@@ -54,9 +56,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("uresearch_user");
+      if (stored) setUser(JSON.parse(stored));
+    } catch {
+      // ignore
+    }
+
+    function onAuthChanged() {
+      try {
+        const stored = localStorage.getItem("uresearch_user");
+        setUser(stored ? JSON.parse(stored) : null);
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener("uresearch_auth_changed", onAuthChanged);
+    return () => window.removeEventListener("uresearch_auth_changed", onAuthChanged);
+  }, []);
+
   const activeItem = navigationItems.find((item) =>
     item.match.some((m) => pathname.startsWith(m))
   );
+
+  // For landing page (/), render without the sidebar frame
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="app-shell-container">
@@ -272,6 +302,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <FilePlus size={13} /> Import Paper
             </button>
+
+            {/* User Profile / Sign In */}
+            <button
+              className="button ghost"
+              style={{ height: 30, padding: "0 8px", fontSize: 12, gap: 5 }}
+              onClick={() => setAuthOpen(true)}
+              title={user ? `Signed in as ${user.name}` : "Sign In / Sign Up"}
+            >
+              <User size={13} style={{ color: user ? "var(--scholar-accent)" : "inherit" }} />
+              <span>{user ? user.name : "Sign In"}</span>
+            </button>
           </div>
         </header>
 
@@ -292,6 +333,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setImportOpen(false)}
         onPaperImported={() => {
           void listPapers().then((items) => setPaperCount(items.length));
+        }}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={(profile) => {
+          setUser(profile);
         }}
       />
     </div>

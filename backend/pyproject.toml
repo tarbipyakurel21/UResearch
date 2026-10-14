@@ -14,7 +14,6 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "alembic>=1.15",
   "python-multipart>=0.0.20",
-  "boto3>=1.37",
   "redis>=5.2",
   "celery[redis]>=5.5",
   "pypdf>=5.4",

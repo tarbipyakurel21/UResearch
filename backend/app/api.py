@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,8 +14,8 @@ from .schemas import (
     PaperRead,
     ProjectCreate,
     ProjectRead,
+    UploadThingPaperCreate,
 )
-from .storage import put_object
 from .tasks import extract_paper_text
 
 router = APIRouter(prefix="/api")
@@ -40,20 +40,21 @@ def list_projects(db: Session = Depends(get_db)) -> list[Project]:
     return list(db.scalars(select(Project).order_by(Project.updated_at.desc())))
 
 
-@router.post("/projects/{project_id}/papers", response_model=PaperRead)
-async def upload_paper(
-    project_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db)
+def register_upload(
+    payload: UploadThingPaperCreate, db: Session, project_id: UUID | None = None
 ) -> Paper:
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    content = await file.read()
-    key = f"papers/{project_id}/{file.filename or 'paper.pdf'}"
-    put_object(key, content, file.content_type or "application/pdf")
+    """Register a PDF that the browser uploaded directly to UploadThing.
+
+    The binary never passes through a Vercel function.  This endpoint stores
+    only the durable UploadThing file URL/key in PostgreSQL and queues any
+    later extraction work.
+    """
     paper = Paper(
         project_id=project_id,
-        title=(file.filename or "Untitled paper").rsplit(".", 1)[0],
-        object_key=key,
+        title=payload.filename.rsplit(".", 1)[0] or "Untitled paper",
+        source_url=payload.url,
+        object_key=payload.key,
+        metadata_json={"content_type": payload.content_type, "size": payload.size},
         status="queued",
     )
     db.add(paper)
@@ -61,6 +62,21 @@ async def upload_paper(
     db.refresh(paper)
     extract_paper_text.delay(str(paper.id))
     return paper
+
+
+@router.post("/papers", response_model=PaperRead)
+def register_library_paper(payload: UploadThingPaperCreate, db: Session = Depends(get_db)) -> Paper:
+    """Save an UploadThing PDF in the user's unassigned library."""
+    return register_upload(payload, db)
+
+
+@router.post("/projects/{project_id}/papers", response_model=PaperRead)
+def register_project_paper(
+    project_id: UUID, payload: UploadThingPaperCreate, db: Session = Depends(get_db)
+) -> Paper:
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return register_upload(payload, db, project_id=project_id)
 
 
 @router.get("/projects/{project_id}/papers", response_model=list[PaperRead])

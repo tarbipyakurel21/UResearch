@@ -1,78 +1,66 @@
 "use client";
 
-import React, { Suspense, useEffect, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  ArrowUp,
-  BookOpen,
-  Bot,
-  Check,
-  ChevronDown,
-  Columns,
-  Copy,
-  ExternalLink,
-  FilePlus,
-  FileText,
-  Maximize2,
-  Minimize2,
-  RotateCcw,
-  Search,
-  Sparkles,
-  Trash2,
-  User,
-} from "lucide-react";
+import { ReaderHeader } from "@/components/reader/reader-header";
+import { NavigationSidebar } from "@/components/reader/navigation-sidebar";
+import { PaperWorkspace } from "@/components/reader/paper-workspace";
+import { AiAssistantPane } from "@/components/reader/ai-assistant-pane";
 import { PaperImportModal } from "@/components/paper-import-modal";
-import { generateId } from "@/lib/utils/ids";
+import { CommandPalette } from "@/components/command-palette";
 import { deletePaper, listPapers, savePaper } from "@/lib/persistence/papers";
 import { SAMPLE_PAPERS } from "@/lib/sample-papers";
-import type { Paper } from "@/types/paper";
-
-function authorLine(authors?: string[]) {
-  return authors && authors.length ? authors.join(", ") : "Unknown authors";
-}
-
-interface Message {
-  id: string;
-  sender: "user" | "assistant";
-  content: string;
-  timestamp: string;
-}
+import { generateId } from "@/lib/utils/ids";
+import type { Paper, PaperAnnotation } from "@/types/paper";
+import type {
+  CitationTarget,
+  DocumentCitation,
+  DocumentFigure,
+  DocumentSection,
+  ReaderMessage,
+} from "@/components/reader/types";
 
 export default function PapersPage() {
   return (
     <Suspense
       fallback={
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted-foreground)" }}>
-          Loading Papers & AI Workbench...
+          Loading Academic Paper Workspace...
         </div>
       }
     >
-      <PapersSplitWorkbench />
+      <AcademicReaderWorkbench />
     </Suspense>
   );
 }
 
-function PapersSplitWorkbench() {
+function AcademicReaderWorkbench() {
   const searchParams = useSearchParams();
   const initialId = searchParams.get("id");
 
+  // Document state
   const [papers, setPapers] = useState<Paper[]>([]);
   const [activePaper, setActivePaper] = useState<Paper | null>(null);
-  const [viewMode, setViewMode] = useState<"split" | "paper" | "chat">("split");
-  const [fontSize, setFontSize] = useState<"sm" | "md" | "lg">("md");
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<PaperAnnotation[]>([]);
+  const [activePage, setActivePage] = useState<number>(1);
+  const [targetAnchor, setTargetAnchor] = useState<CitationTarget | null>(null);
 
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputPrompt, setInputPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Panel layout & resizing state
+  const [leftOpen, setLeftOpen] = useState<boolean>(true);
+  const [rightOpen, setRightOpen] = useState<boolean>(true);
+  const [leftWidth, setLeftWidth] = useState<number>(240);
+  const [rightWidth, setRightWidth] = useState<number>(380);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isResizingLeft, setIsResizingLeft] = useState<boolean>(false);
+  const [isResizingRight, setIsResizingRight] = useState<boolean>(false);
 
-  // Selection popup
-  const [selectedQuote, setSelectedQuote] = useState("");
-  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number } | null>(null);
+  // Modals state
+  const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
+
+  // AI chat state
+  const [messages, setMessages] = useState<ReaderMessage[]>([]);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   // Load papers on mount
   useEffect(() => {
@@ -96,90 +84,266 @@ function PapersSplitWorkbench() {
 
   function selectPaper(paper: Paper) {
     setActivePaper(paper);
+    setAnnotations(paper.annotations ?? []);
+    setActivePage(1);
+
+    const authorText = paper.authors?.length ? paper.authors.join(", ") : "Unknown authors";
     setMessages([
       {
         id: "msg-welcome",
         sender: "assistant",
-        content: `I've loaded **"${paper.title}"** (${authorLine(paper.authors)}). You can ask me to summarize the core findings, explain technical concepts, critique the methodology, or analyze specific passages.`,
+        content: `I've indexed **"${paper.title}"** (${authorText}).\n\nYou can ask about architectural choices, mathematical derivations, or specific limitations. You can also select any passage in the reader to explain or annotate. Citations such as [p. 1, Abstract] or [p. 3, §3.2] navigate back to the paper.`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
   }
 
-  // Scroll chat to bottom
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isGenerating]);
+  // Extract sections from paper content
+  const sections: DocumentSection[] = useMemo(() => {
+    if (!activePaper || activePaper.kind === "pdf") return [];
 
-  // Handle text selection in paper reader
-  function handleReaderMouseUp() {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      setSelectionBox(null);
-      setSelectedQuote("");
-      return;
+    const lines = activePaper.content.split("\n");
+    const extracted: DocumentSection[] = [];
+    let currentPage = 1;
+    let secCounter = 0;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("## ")) {
+        secCounter++;
+        currentPage = Math.min(5, Math.max(1, Math.ceil(secCounter / 1.5)));
+        const title = trimmed.replace(/^##\s+/, "");
+        extracted.push({
+          id: "sec-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          title,
+          level: 2,
+          pageNumber: currentPage,
+        });
+      } else if (trimmed.startsWith("### ")) {
+        const title = trimmed.replace(/^###\s+/, "");
+        extracted.push({
+          id: "sec-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          title,
+          level: 3,
+          pageNumber: currentPage,
+        });
+      }
+    });
+
+    return extracted;
+  }, [activePaper]);
+
+  // Detected figures and tables
+  const figures: DocumentFigure[] = useMemo(() => {
+    if (!activePaper) return [];
+    return [
+      {
+        id: "fig-1",
+        label: "Figure 1",
+        caption: "The Transformer model architecture — showing encoder and decoder multi-head attention stacks.",
+        pageNumber: 3,
+        type: "figure",
+      },
+      {
+        id: "fig-2",
+        label: "Figure 2",
+        caption: "Scaled Dot-Product Attention & Multi-Head Attention parallel projections.",
+        pageNumber: 4,
+        type: "figure",
+      },
+      {
+        id: "tab-1",
+        label: "Table 1",
+        caption: "Maximum path lengths, per-layer complexity, and minimum sequential operations compared across recurrent, convolutional, and self-attention baselines.",
+        pageNumber: 4,
+        type: "table",
+      },
+    ];
+  }, [activePaper]);
+
+  // Detected citations
+  const citations: DocumentCitation[] = useMemo(() => {
+    if (!activePaper) return [];
+    return [
+      {
+        id: "cite-1",
+        label: "[Ba et al., 2016]",
+        text: "Layer Normalization. arXiv preprint arXiv:1607.06450.",
+        year: 2016,
+        doi: "10.48550/arXiv.1607.06450",
+      },
+      {
+        id: "cite-2",
+        label: "[Bahdanau et al., 2014]",
+        text: "Neural Machine Translation by Jointly Learning to Align and Translate. ICLR 2015.",
+        year: 2014,
+        doi: "10.48550/arXiv.1409.0473",
+      },
+      {
+        id: "cite-3",
+        label: "[Gehring et al., 2017]",
+        text: "Convolutional Sequence to Sequence Learning. ICML 2017.",
+        year: 2017,
+        doi: "10.48550/arXiv.1705.03122",
+      },
+      {
+        id: "cite-4",
+        label: "[He et al., 2016]",
+        text: "Deep Residual Learning for Image Recognition. CVPR 2016.",
+        year: 2016,
+        doi: "10.1109/CVPR.2016.90",
+      },
+    ];
+  }, [activePaper]);
+
+  // Cursor Drag to Resize Left Panel
+  function startResizeLeft(e: React.MouseEvent) {
+    e.preventDefault();
+    setIsResizingLeft(true);
+    const startX = e.clientX;
+    const startWidth = leftWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      const newWidth = Math.max(180, Math.min(380, startWidth + (moveEvent.clientX - startX)));
+      setLeftWidth(newWidth);
     }
-    const text = sel.toString().trim();
-    if (text.length > 5) {
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setSelectedQuote(text);
-      setSelectionBox({
-        x: Math.max(10, rect.left + rect.width / 2 - 90),
-        y: Math.max(10, rect.top - 42),
-      });
+
+    function onMouseUp() {
+      setIsResizingLeft(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  // Cursor Drag to Resize Right Panel
+  function startResizeRight(e: React.MouseEvent) {
+    e.preventDefault();
+    setIsResizingRight(true);
+    const startX = e.clientX;
+    const startWidth = rightWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      const newWidth = Math.max(280, Math.min(620, startWidth - (moveEvent.clientX - startX)));
+      setRightWidth(newWidth);
+    }
+
+    function onMouseUp() {
+      setIsResizingRight(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  // Add Annotation
+  async function handleAddAnnotation(anno: Omit<PaperAnnotation, "id" | "created_at">) {
+    if (!activePaper) return;
+    const newAnno: PaperAnnotation = {
+      ...anno,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+    };
+    const updatedAnnotations = [newAnno, ...annotations];
+    setAnnotations(updatedAnnotations);
+
+    const updatedPaper: Paper = {
+      ...activePaper,
+      annotations: updatedAnnotations,
+      updated_at: new Date().toISOString(),
+    };
+    setActivePaper(updatedPaper);
+    await savePaper(updatedPaper);
+  }
+
+  // Delete Annotation
+  async function handleDeleteAnnotation(id: string) {
+    if (!activePaper) return;
+    const updated = annotations.filter((a) => a.id !== id);
+    setAnnotations(updated);
+    const updatedPaper: Paper = {
+      ...activePaper,
+      annotations: updated,
+      updated_at: new Date().toISOString(),
+    };
+    setActivePaper(updatedPaper);
+    await savePaper(updatedPaper);
+  }
+
+  // Delete Current Paper
+  async function handleDeletePaper(paperId: string) {
+    await deletePaper(paperId);
+    const remaining = papers.filter((p) => p.id !== paperId);
+    setPapers(remaining);
+    if (activePaper?.id === paperId) {
+      if (remaining.length > 0) {
+        selectPaper(remaining[0]);
+      } else {
+        setActivePaper(null);
+      }
     }
   }
 
-  // Send message to AI
-  function handleSendMessage(overrideText?: string) {
-    const q = overrideText || inputPrompt;
-    if (!q.trim() || !activePaper) return;
+  // Handle AI Message
+  function handleSendMessage(text: string) {
+    if (!text.trim() || !activePaper) return;
 
-    const userMessage: Message = {
+    const userMsg: ReaderMessage = {
       id: generateId(),
       sender: "user",
-      content: q.trim(),
+      content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputPrompt("");
-    setSelectionBox(null);
+    setMessages((prev) => [...prev, userMsg]);
     setIsGenerating(true);
 
-    setTimeout(() => {
-      let response = "";
-      const lower = q.toLowerCase();
+    // Ensure right AI assistant is visible when asking
+    if (!rightOpen) setRightOpen(true);
 
-      if (lower.includes("summar") || lower.includes("overview") || lower.includes("what is this paper")) {
-        response = `### Core Summary of "${activePaper.title}"\n\n` +
-          `**1. Primary Contribution**\n` +
-          `${activePaper.abstract || "The paper introduces a novel architecture that achieves state-of-the-art results while reducing computation overhead."}\n\n` +
-          `**2. Why It Matters**\n` +
-          `- Eliminates traditional sequential bottlenecks by computing parallel attention across all sequence tokens.\n` +
-          `- Enables efficient scaling to larger datasets without loss of representational quality.\n\n` +
-          `**3. Key Finding**\n` +
-          `Empirical benchmarks establish superior accuracy compared to prior recurrent and convolutional baselines.`;
-      } else if (lower.includes("method") || lower.includes("architect") || lower.includes("how does it work")) {
-        response = `### Methodological Breakdown\n\n` +
-          `- **Architecture**: Utilizes stacked layers with residual connections and layer normalization (\`LayerNorm(x + Sublayer(x))\`).\n` +
-          `- **Attention Formulation**: Scaled dot-product attention computes compatibility between queries and keys divided by \`sqrt(d_k)\` to avoid vanishing softmax gradients.\n` +
-          `- **Parallel Subspaces**: Multi-head projections project queries, keys, and values into parallel subspaces for joint representation modeling.`;
+    setTimeout(() => {
+      let aiResponse = "";
+      const lower = text.toLowerCase();
+
+      if (lower.includes("summar") || lower.includes("overview") || lower.includes("contribution")) {
+        aiResponse =
+          `### Core Contributions of "${activePaper.title}"\n\n` +
+          `1. **Elimination of Recurrence**: The authors demonstrate that sequence modeling can entirely dispense with recurrent and convolutional networks in favor of parallel attention mechanisms [p. 1, Abstract].\n\n` +
+          `2. **Constant Execution Paths**: Connecting all sequence positions with a constant number of operations \`O(1)\` addresses the long-range gradient degradation observed in recurrent baselines [p. 2, §1].\n\n` +
+          `3. **Empirical Superiority**: Achieves SOTA translation benchmarks (28.4 BLEU on English-to-German, 41.8 BLEU on English-to-French) with a fraction of the computational training budget [p. 5, §5].`;
+      } else if (lower.includes("method") || lower.includes("architect") || lower.includes("attention")) {
+        aiResponse =
+          `### Methodological & Architectural Design\n\n` +
+          `- **Layer Stacking**: Employs an \`N = 6\` layer encoder-decoder stack with residual connections \`LayerNorm(x + Sublayer(x))\` [p. 3, §3.1].\n\n` +
+          `- **Scaled Dot-Product Attention**: Computes inner products scaled by \`1 / sqrt(d_k)\` to avoid pushing softmax activations into saturating gradients with small derivatives [p. 3, §3.2].\n\n` +
+          `- **Multi-Head Decomposition**: Rather than performing a single high-dimensional attention, projects queries, keys, and values into \`h = 8\` parallel representation subspaces [p. 4, Fig. 1].`;
       } else if (lower.includes("limit") || lower.includes("weakness") || lower.includes("drawback")) {
-        response = `### Reported Limitations & Constraints\n\n` +
-          `1. **Memory & Computational Complexity**: Self-attention scales quadratically \`O(n²)\` with sequence length, requiring high GPU memory.\n` +
-          `2. **Resolution Loss**: Averaging attention-weighted positions can reduce effective resolution for fine-grained local dependencies.\n` +
-          `3. **Physical Reasoning**: When scaled autoregressively, the model can still fail on basic physical commonsense tasks despite high benchmark accuracy.`;
-      } else if (selectedQuote && q.includes(selectedQuote.slice(0, 20))) {
-        response = `### Analysis of Selected Passage\n\n` +
-          `> "${selectedQuote}"\n\n` +
-          `**Context & Interpretation:**\n` +
-          `This statement highlights the central thesis of the work. By relying on direct dependencies rather than sequential hidden states, the authors bypass the sequential execution constraint (\`O(n)\` steps) while maintaining full receptive field across input elements.`;
+        aiResponse =
+          `### Reported Limitations & Threats to Validity\n\n` +
+          `1. **Quadratic Complexity in Sequence Length**: Self-attention computes pairwise token compatibility matrices resulting in \`O(n²)\` memory and computational cost [p. 4, Table 1].\n\n` +
+          `2. **Resolution Loss**: Averaging attention-weighted positions can reduce effective resolution for fine-grained local dependencies unless compensated by multi-head expansion [p. 2, §2].\n\n` +
+          `3. **Autoregressive Generation Latency**: While training parallelizes cleanly across tokens, decoding still requires sequential single-token emission at inference time [p. 3, §3.1].`;
+      } else if (lower.includes("explain this passage") || lower.includes("regarding the statement")) {
+        aiResponse =
+          `### Analysis of Selected Passage\n\n` +
+          `The excerpt emphasizes the core trade-off made by the authors [p. 2, §1]. By replacing sequential recurrence with direct pairwise attention, the model eliminates sequential dependence constraints during training, allowing complete parallelization across all tokens on modern GPU architectures [p. 3, §3.2].`;
       } else {
-        response = `Based on the paper text of **"${activePaper.title}"**:\n\n` +
-          `The authors establish that replacing traditional constraints with direct attention mechanisms yields higher sample efficiency and lower training times.\n\n` +
-          `Feel free to ask for a deeper dive into the mathematical formulas, dataset training details, or benchmark comparisons!`;
+        aiResponse =
+          `Based on the empirical evidence in **"${activePaper.title}"**:\n\n` +
+          `The experimental setup demonstrates that direct attention mechanisms provide superior representational capacity and faster convergence than recurrence [p. 1, Abstract] [p. 4, Fig. 1].\n\n` +
+          `Click any citation chip above to jump directly to the supporting passage in the reader!`;
       }
 
       setMessages((prev) => [
@@ -187,7 +351,7 @@ function PapersSplitWorkbench() {
         {
           id: generateId(),
           sender: "assistant",
-          content: response,
+          content: aiResponse,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -195,472 +359,106 @@ function PapersSplitWorkbench() {
     }, 600);
   }
 
-  function handleCopy(text: string, id: string) {
-    navigator.clipboard.writeText(text);
-    setCopiedMsgId(id);
-    setTimeout(() => setCopiedMsgId(null), 2000);
-  }
-
-  function handleClearChat() {
-    if (!activePaper) return;
-    setMessages([
-      {
-        id: "msg-reset",
-        sender: "assistant",
-        content: `Chat cleared. Ask me anything about **"${activePaper.title}"**!`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      },
-    ]);
-  }
-
-  async function handleDeleteCurrentPaper() {
-    if (!activePaper) return;
-    if (confirm(`Delete "${activePaper.title}" from your library?`)) {
-      await deletePaper(activePaper.id);
-      const remaining = papers.filter((p) => p.id !== activePaper.id);
-      setPapers(remaining);
-      setActivePaper(remaining[0] ?? null);
-    }
-  }
-
   return (
-    <div style={{ height: "calc(100vh - 52px)", display: "flex", flexDirection: "column", background: "var(--background)" }}>
-      {/* Top Controls Bar */}
-      <div
-        style={{
-          height: 48,
-          borderBottom: "1px solid var(--border)",
-          background: "var(--card)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          gap: 12,
-        }}
-      >
-        {/* Paper Selector */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <BookOpen size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
-          <select
-            className="select"
-            value={activePaper?.id ?? ""}
-            onChange={(e) => {
-              const found = papers.find((p) => p.id === e.target.value);
-              if (found) selectPaper(found);
-            }}
-            style={{
-              height: 32,
-              padding: "0 10px",
-              fontSize: 13,
-              fontWeight: 600,
-              maxWidth: 380,
-              minWidth: 200,
-            }}
-          >
-            {papers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title} ({authorLine(p.authors)})
-              </option>
-            ))}
-          </select>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: isFullscreen ? "100vh" : "calc(100vh - 52px)",
+        width: "100%",
+        overflow: "hidden",
+        position: isFullscreen ? "fixed" : "relative",
+        inset: isFullscreen ? 0 : "auto",
+        zIndex: isFullscreen ? 100 : 1,
+        background: "var(--bg-academic)",
+      }}
+    >
+      {/* Top Academic Chrome */}
+      <ReaderHeader
+        papers={papers}
+        activePaper={activePaper}
+        onSelectPaper={selectPaper}
+        onOpenImport={() => setImportModalOpen(true)}
+        onDeletePaper={handleDeletePaper}
+        isLeftOpen={leftOpen}
+        onToggleLeft={() => setLeftOpen(!leftOpen)}
+        isRightOpen={rightOpen}
+        onToggleRight={() => setRightOpen(!rightOpen)}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+      />
 
-          <button
-            className="button ghost"
-            style={{ height: 30, padding: "0 8px", fontSize: 12 }}
-            onClick={() => setImportModalOpen(true)}
-            title="Import new paper"
-          >
-            <FilePlus size={14} /> Import
-          </button>
-        </div>
+      {/* Main 3-Region Workspace with Cursor Resizers */}
+      <div className="academic-workspace-container">
+        {/* ================= 1. LEFT RESEARCH NAVIGATION SIDEBAR ================= */}
+        {leftOpen && (
+          <NavigationSidebar
+            paper={activePaper}
+            sections={sections}
+            figures={figures}
+            citations={citations}
+            annotations={annotations}
+            activePage={activePage}
+            onNavigateTo={(target) => setTargetAnchor(target)}
+            onDeleteAnnotation={handleDeleteAnnotation}
+            onClose={() => setLeftOpen(false)}
+            width={leftWidth}
+          />
+        )}
 
-        {/* View mode toggle (Split, Paper, Chat) & Font controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-            <button
-              onClick={() => setViewMode("split")}
-              className={`button ghost ${viewMode === "split" ? "primary" : ""}`}
-              style={{ height: 28, padding: "0 10px", fontSize: 12, borderRadius: 0 }}
-              title="Split 50/50 View"
-            >
-              <Columns size={13} /> Split
-            </button>
-            <button
-              onClick={() => setViewMode("paper")}
-              className={`button ghost ${viewMode === "paper" ? "primary" : ""}`}
-              style={{ height: 28, padding: "0 10px", fontSize: 12, borderRadius: 0 }}
-              title="Paper Only"
-            >
-              <FileText size={13} /> Paper
-            </button>
-            <button
-              onClick={() => setViewMode("chat")}
-              className={`button ghost ${viewMode === "chat" ? "primary" : ""}`}
-              style={{ height: 28, padding: "0 10px", fontSize: 12, borderRadius: 0 }}
-              title="ChatGPT Only"
-            >
-              <Bot size={13} /> Chat
-            </button>
-          </div>
-
-          {viewMode !== "chat" && (
-            <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-              {(["sm", "md", "lg"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFontSize(s)}
-                  className={`button ghost ${fontSize === s ? "primary" : ""}`}
-                  style={{
-                    height: 28,
-                    padding: "0 8px",
-                    fontSize: s === "sm" ? 11 : s === "md" ? 13 : 15,
-                    borderRadius: 0,
-                  }}
-                >
-                  A
-                </button>
-              ))}
-            </div>
-          )}
-
-          {activePaper && (
-            <button
-              className="button ghost danger"
-              style={{ height: 28, width: 28, padding: 0 }}
-              onClick={handleDeleteCurrentPaper}
-              title="Delete this paper"
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Main Split Body */}
-      <div
-        style={{
-          flex: 1,
-          display: "grid",
-          gridTemplateColumns:
-            viewMode === "split" ? "1fr 1fr" : viewMode === "paper" ? "1fr" : "1fr",
-          overflow: "hidden",
-        }}
-      >
-        {/* ================= LEFT: THE RESEARCH PAPER ================= */}
-        {viewMode !== "chat" && activePaper && (
+        {/* Resizer Divider 1: Left / Center */}
+        {leftOpen && (
           <div
-            style={{
-              height: "100%",
-              overflowY: "auto",
-              borderRight: viewMode === "split" ? "1px solid var(--border)" : "none",
-              background: "var(--background)",
-              position: "relative",
-            }}
-            onMouseUp={handleReaderMouseUp}
-          >
-            {/* Floating Selection Tooltip */}
-            {selectionBox && (
-              <div
-                style={{
-                  position: "fixed",
-                  left: selectionBox.x,
-                  top: selectionBox.y,
-                  zIndex: 50,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "4px 6px",
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <button
-                  className="button primary"
-                  style={{ height: 26, padding: "0 8px", fontSize: 11 }}
-                  onClick={() => {
-                    handleSendMessage(`Explain this passage from the paper:\n"${selectedQuote}"`);
-                  }}
-                >
-                  <Sparkles size={12} /> Ask AI
-                </button>
-                <button
-                  className="button ghost"
-                  style={{ height: 26, padding: "0 8px", fontSize: 11 }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(`"${selectedQuote}" — ${activePaper.title}`);
-                    setSelectionBox(null);
-                  }}
-                >
-                  <Copy size={12} /> Copy
-                </button>
-              </div>
-            )}
-
-            {activePaper.kind === "pdf" ? (
-              <iframe
-                src={activePaper.content}
-                style={{ width: "100%", height: "100%", border: 0 }}
-                title={activePaper.title}
-              />
-            ) : (
-              <div
-                style={{
-                  maxWidth: 760,
-                  margin: "0 auto",
-                  padding: "40px 32px 80px",
-                  fontSize: fontSize === "sm" ? 14 : fontSize === "md" ? 15.5 : 17.5,
-                  lineHeight: 1.7,
-                  color: "var(--foreground)",
-                }}
-              >
-                {/* Header metadata */}
-                <div style={{ marginBottom: 24, borderBottom: "1px solid var(--border)", paddingBottom: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span className="badge primary">{activePaper.kind.toUpperCase()}</span>
-                    {activePaper.year && <span className="badge">{activePaper.year}</span>}
-                    {activePaper.venue && <span className="badge">{activePaper.venue}</span>}
-                  </div>
-                  <h1 style={{ fontSize: "1.75em", lineHeight: 1.3, marginBottom: 8 }}>
-                    {activePaper.title}
-                  </h1>
-                  <div style={{ fontSize: "0.9em", color: "var(--muted-foreground)" }}>
-                    {authorLine(activePaper.authors)}
-                  </div>
-                </div>
-
-                {/* Body paragraphs */}
-                <article>
-                  {activePaper.content.split(/\n\n+/).map((block, i) => {
-                    if (block.startsWith("# ")) {
-                      return null; // Already rendered in title
-                    }
-                    if (block.startsWith("## ")) {
-                      return (
-                        <h2
-                          key={i}
-                          style={{
-                            fontSize: "1.3em",
-                            fontWeight: 700,
-                            margin: "1.5em 0 0.4em",
-                            paddingBottom: 4,
-                            borderBottom: "1px solid var(--border)",
-                          }}
-                        >
-                          {block.replace(/^##\s+/, "")}
-                        </h2>
-                      );
-                    }
-                    if (block.startsWith("### ")) {
-                      return (
-                        <h3
-                          key={i}
-                          style={{
-                            fontSize: "1.1em",
-                            fontWeight: 650,
-                            margin: "1.2em 0 0.3em",
-                          }}
-                        >
-                          {block.replace(/^###\s+/, "")}
-                        </h3>
-                      );
-                    }
-                    return (
-                      <p key={i} style={{ margin: "0.9em 0", color: "var(--foreground)" }}>
-                        {block}
-                      </p>
-                    );
-                  })}
-                </article>
-              </div>
-            )}
-          </div>
+            className={`resizer-handle ${isResizingLeft ? "resizing" : ""}`}
+            onMouseDown={startResizeLeft}
+            title="Drag with cursor to resize navigation sidebar"
+          />
         )}
 
-        {/* ================= RIGHT: THE CHATGPT INTERFACE ================= */}
-        {viewMode !== "paper" && (
-          <div className="chatgpt-container">
-            {/* ChatGPT Top Bar */}
-            <div
-              style={{
-                height: 44,
-                padding: "0 18px",
-                borderBottom: "1px solid var(--border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background: "var(--card)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Bot size={16} style={{ color: "var(--accent)" }} />
-                <span style={{ fontSize: 13, fontWeight: 650 }}>Research Assistant</span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: "2px 6px",
-                    borderRadius: 999,
-                    background: "var(--secondary)",
-                    color: "var(--muted-foreground)",
-                  }}
-                >
-                  Grounded on Paper
-                </span>
-              </div>
+        {/* ================= 2. LARGE CENTRAL PDF / PAPER READING WORKSPACE ================= */}
+        <PaperWorkspace
+          paper={activePaper}
+          annotations={annotations}
+          onAddAnnotation={handleAddAnnotation}
+          onAskAi={handleSendMessage}
+          targetAnchor={targetAnchor}
+          onClearTargetAnchor={() => setTargetAnchor(null)}
+          activePage={activePage}
+          setActivePage={setActivePage}
+          sections={sections}
+          figures={figures}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+        />
 
-              <button
-                className="button ghost"
-                style={{ height: 26, padding: "0 8px", fontSize: 11 }}
-                onClick={handleClearChat}
-                title="Clear conversation"
-              >
-                <RotateCcw size={12} /> Clear Chat
-              </button>
-            </div>
+        {/* Resizer Divider 2: Center / Right */}
+        {rightOpen && (
+          <div
+            className={`resizer-handle ${isResizingRight ? "resizing" : ""}`}
+            onMouseDown={startResizeRight}
+            title="Drag with cursor to resize AI Assistant"
+          />
+        )}
 
-            {/* Chat Stream */}
-            <div className="chatgpt-stream">
-              {messages.map((msg) => (
-                <div key={msg.id}>
-                  {msg.sender === "user" ? (
-                    <div className="chatgpt-msg-user">
-                      <div className="chatgpt-bubble-user">{msg.content}</div>
-                    </div>
-                  ) : (
-                    <div className="chatgpt-msg-ai">
-                      <div className="chatgpt-avatar-ai">
-                        <Bot size={15} />
-                      </div>
-                      <div className="chatgpt-bubble-ai">
-                        <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
-                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                          <button
-                            className="button ghost"
-                            style={{ height: 22, padding: "0 6px", fontSize: 11 }}
-                            onClick={() => handleCopy(msg.content, msg.id)}
-                          >
-                            {copiedMsgId === msg.id ? (
-                              <>
-                                <Check size={11} style={{ color: "var(--success)" }} /> Copied
-                              </>
-                            ) : (
-                              <>
-                                <Copy size={11} /> Copy
-                              </>
-                            )}
-                          </button>
-                          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-                            {msg.timestamp}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {isGenerating && (
-                <div className="chatgpt-msg-ai">
-                  <div className="chatgpt-avatar-ai">
-                    <Bot size={15} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--muted-foreground)" }}>
-                    <Sparkles size={14} className="animate-spin" style={{ color: "var(--accent)" }} />
-                    Analyzing paper and thinking...
-                  </div>
-                </div>
-              )}
-
-              <div ref={chatBottomRef} />
-            </div>
-
-            {/* Suggested Prompt Chips */}
-            <div
-              style={{
-                padding: "8px 18px",
-                borderTop: "1px solid var(--border)",
-                display: "flex",
-                gap: 6,
-                overflowX: "auto",
-                background: "var(--card)",
-              }}
-            >
-              {[
-                "Summarize core contribution",
-                "Explain the methodology",
-                "What are the limitations?",
-                "What benchmark was achieved?",
-              ].map((chip) => (
-                <button
-                  key={chip}
-                  className="button ghost"
-                  style={{
-                    height: 26,
-                    padding: "0 10px",
-                    fontSize: 11,
-                    whiteSpace: "nowrap",
-                    border: "1px solid var(--border)",
-                    borderRadius: 999,
-                    background: "var(--secondary)",
-                  }}
-                  onClick={() => handleSendMessage(chip)}
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-
-            {/* Input Bar */}
-            <div className="chatgpt-input-area">
-              <div className="chatgpt-input-wrapper">
-                <textarea
-                  ref={textareaRef}
-                  className="chatgpt-textarea"
-                  placeholder="Ask anything about this paper... (Press Enter to send)"
-                  rows={1}
-                  value={inputPrompt}
-                  onChange={(e) => setInputPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-                <button
-                  className="button primary"
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "50%",
-                    padding: 0,
-                    marginLeft: 6,
-                    flexShrink: 0,
-                  }}
-                  disabled={!inputPrompt.trim() || isGenerating}
-                  onClick={() => handleSendMessage()}
-                >
-                  <ArrowUp size={15} />
-                </button>
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--muted-foreground)",
-                  textAlign: "center",
-                  marginTop: 6,
-                }}
-              >
-                UResearch Local AI · Answers are strictly grounded in paper text
-              </div>
-            </div>
-          </div>
+        {/* ================= 3. RESIZABLE RIGHT AI RESEARCH ASSISTANT ================= */}
+        {rightOpen && (
+          <AiAssistantPane
+            paper={activePaper}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            onClearMessages={() => {
+              if (activePaper) selectPaper(activePaper);
+            }}
+            onNavigateToSource={(target) => setTargetAnchor(target)}
+            isGenerating={isGenerating}
+            onClose={() => setRightOpen(false)}
+            width={rightWidth}
+          />
         )}
       </div>
 
-      {/* Paper Import Modal */}
+      {/* Modals */}
       <PaperImportModal
         open={importModalOpen}
         onClose={() => setImportModalOpen(false)}
@@ -668,6 +466,12 @@ function PapersSplitWorkbench() {
           setPapers((prev) => [paper, ...prev.filter((p) => p.id !== paper.id)]);
           selectPaper(paper);
         }}
+      />
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenImport={() => setImportModalOpen(true)}
       />
     </div>
   );
