@@ -111,12 +111,12 @@ export default function LandingPage() {
         {/* Center Nav Links */}
         <nav style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <Link
-            href="/papers"
+            href="/library"
             style={{ fontSize: 13, textDecoration: "none", color: "var(--muted-foreground)", fontWeight: 500 }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
           >
-            Literature Reader
+            Library
           </Link>
           <Link
             href="/visualize"
@@ -124,23 +124,7 @@ export default function LandingPage() {
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
           >
-            Visualizer
-          </Link>
-          <Link
-            href="/data"
-            style={{ fontSize: 13, textDecoration: "none", color: "var(--muted-foreground)", fontWeight: 500 }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
-          >
-            Datasets
-          </Link>
-          <Link
-            href="/audit"
-            style={{ fontSize: 13, textDecoration: "none", color: "var(--muted-foreground)", fontWeight: 500 }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
-          >
-            Human Audit
+            Visualization
           </Link>
         </nav>
 
@@ -179,7 +163,7 @@ export default function LandingPage() {
                 Sign Out
               </button>
               <Link
-                href="/papers"
+                href="/library"
                 className="button primary"
                 style={{
                   height: 30,
@@ -189,7 +173,7 @@ export default function LandingPage() {
                   borderColor: "var(--scholar-accent)",
                 }}
               >
-                Open Reader
+                Open Library
               </Link>
             </div>
           ) : (
@@ -209,7 +193,7 @@ export default function LandingPage() {
                 Sign Up
               </button>
               <Link
-                href="/papers"
+                href="/library"
                 className="button primary"
                 style={{
                   height: 30,
@@ -219,7 +203,7 @@ export default function LandingPage() {
                   borderColor: "var(--scholar-accent)",
                 }}
               >
-                Launch Reader
+                Launch Library
               </Link>
             </div>
           )}
@@ -243,7 +227,7 @@ export default function LandingPage() {
 
         <div className="landing-actions">
           <Link
-            href="/papers"
+            href="/library"
             className="button primary"
             style={{
               height: 40,
@@ -256,7 +240,7 @@ export default function LandingPage() {
             }}
           >
             <BookOpen size={15} />
-            <span>Open Paper Reading Workspace</span>
+            <span>Open Research Library</span>
             <ArrowRight size={14} />
           </Link>
 
@@ -272,11 +256,20 @@ export default function LandingPage() {
           )}
 
           <Link
-            href="/overview"
+            href="/visualize"
             className="button ghost"
-            style={{ height: 40, fontSize: 13, padding: "0 14px", border: "1px solid var(--border)" }}
+            style={{
+              height: 40,
+              fontSize: 13,
+              padding: "0 14px",
+              border: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
-            Explore Dashboard
+            <BarChart3 size={14} />
+            <span>Data Visualizer</span>
           </Link>
         </div>
 
@@ -628,10 +621,10 @@ export default function LandingPage() {
               <BarChart3 size={18} />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Data & Audit Workspaces
+              Interactive Data Visualization
             </h3>
             <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              Seamlessly connect literature reviews with your experimental data. Import CSV/JSON datasets, plot interactive distributions, and conduct structured human audit reviews.
+              Upload research datasets in JSON, JSONL, CSV, or TSV format. Plot interactive distributions, line trends, scatter plots, and inspect contributing records.
             </p>
           </div>
         </div>
@@ -654,7 +647,7 @@ export default function LandingPage() {
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
           <Link
-            href="/papers"
+            href="/library"
             className="button primary"
             style={{
               height: 38,
@@ -665,7 +658,7 @@ export default function LandingPage() {
               borderColor: "var(--scholar-accent)",
             }}
           >
-            Launch Literature Workspace
+            Launch Research Library
           </Link>
           {!currentUser && (
             <button
@@ -698,17 +691,11 @@ export default function LandingPage() {
           <span>Local-First Private Storage</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/papers" style={{ color: "inherit", textDecoration: "none" }}>
-            Papers
+          <Link href="/library" style={{ color: "inherit", textDecoration: "none" }}>
+            Library
           </Link>
           <Link href="/visualize" style={{ color: "inherit", textDecoration: "none" }}>
-            Visualizer
-          </Link>
-          <Link href="/data" style={{ color: "inherit", textDecoration: "none" }}>
-            Datasets
-          </Link>
-          <Link href="/audit" style={{ color: "inherit", textDecoration: "none" }}>
-            Audit
+            Visualization
           </Link>
         </div>
       </footer>

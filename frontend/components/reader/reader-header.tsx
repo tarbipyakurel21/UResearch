@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import {
+  ArrowLeft,
   BookOpen,
   ChevronDown,
   ExternalLink,
@@ -26,8 +27,9 @@ interface ReaderHeaderProps {
   onSelectPaper: (paper: Paper) => void;
   onOpenImport: () => void;
   onDeletePaper?: (paperId: string) => void;
-  isLeftOpen: boolean;
-  onToggleLeft: () => void;
+  onBackToLibrary?: () => void;
+  isLeftOpen?: boolean;
+  onToggleLeft?: () => void;
   isRightOpen: boolean;
   onToggleRight: () => void;
   isFullscreen?: boolean;
@@ -41,6 +43,7 @@ export function ReaderHeader({
   onSelectPaper,
   onOpenImport,
   onDeletePaper,
+  onBackToLibrary,
   isLeftOpen,
   onToggleLeft,
   isRightOpen,
@@ -79,45 +82,40 @@ export function ReaderHeader({
     >
       {/* Left: Brand Monogram & Paper Selector Dropdown */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        {/* Toggle Left Sidebar */}
-        <button
-          className={`button ghost ${isLeftOpen ? "primary" : ""}`}
-          style={{ height: 28, width: 28, padding: 0, borderRadius: 4 }}
-          onClick={onToggleLeft}
-          title={isLeftOpen ? "Collapse navigation sidebar" : "Expand navigation sidebar"}
-        >
-          <PanelLeft size={14} />
-        </button>
-
-        <Link
-          href="/overview"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            textDecoration: "none",
-            color: "inherit",
-            marginRight: 4,
-          }}
-          title="Back to Overview"
-        >
-          <div
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 4,
-              background: "var(--foreground)",
-              color: "var(--background)",
-              display: "grid",
-              placeItems: "center",
-              fontSize: 10,
-              fontWeight: 800,
-              fontFamily: "var(--font-mono)",
-            }}
+        {/* Back to Library Button */}
+        {onBackToLibrary ? (
+          <button
+            onClick={onBackToLibrary}
+            className="button ghost"
+            style={{ height: 28, padding: "0 8px", fontSize: 12, gap: 5, borderRadius: 4 }}
+            title="Back to Research Library"
           >
-            UR
-          </div>
-        </Link>
+            <ArrowLeft size={13} />
+            <span style={{ fontWeight: 600 }}>Library</span>
+          </button>
+        ) : (
+          <Link
+            href="/library"
+            className="button ghost"
+            style={{ height: 28, padding: "0 8px", fontSize: 12, gap: 5, borderRadius: 4 }}
+            title="Back to Research Library"
+          >
+            <ArrowLeft size={13} />
+            <span style={{ fontWeight: 600 }}>Library</span>
+          </Link>
+        )}
+
+        {/* Toggle Left Sidebar (only if handler provided) */}
+        {onToggleLeft && (
+          <button
+            className={`button ghost ${isLeftOpen ? "primary" : ""}`}
+            style={{ height: 28, width: 28, padding: 0, borderRadius: 4 }}
+            onClick={onToggleLeft}
+            title={isLeftOpen ? "Collapse navigation sidebar" : "Expand navigation sidebar"}
+          >
+            <PanelLeft size={14} />
+          </button>
+        )}
 
         {/* Custom Paper Dropdown Popover */}
         <div style={{ position: "relative" }}>

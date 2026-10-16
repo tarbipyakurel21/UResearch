@@ -3,14 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BarChart3,
   BookOpen,
-  Compass,
-  Database,
   FilePlus,
-  FolderKanban,
-  Home,
   Moon,
-  ScanSearch,
   Search,
   Sparkles,
   Sun,
@@ -59,11 +55,8 @@ export function CommandPalette({ open, onClose, onOpenImport }: CommandPalettePr
   if (!open) return null;
 
   const navItems = [
-    { label: "Overview", href: "/overview", icon: Home, category: "Navigation" },
-    { label: "Visualize Data", href: "/visualize", icon: Database, category: "Navigation" },
-    { label: "Datasets & Records", href: "/data", icon: Database, category: "Navigation" },
-    { label: "Papers & AI (ChatGPT View)", href: "/papers", icon: BookOpen, category: "Navigation" },
-    { label: "Human Audit Sessions", href: "/audit", icon: ScanSearch, category: "Navigation" },
+    { label: "Research Library", href: "/library", icon: BookOpen, category: "Navigation" },
+    { label: "Visualization", href: "/visualize", icon: BarChart3, category: "Navigation" },
   ];
 
   const filteredNav = navItems.filter((item) =>
@@ -166,7 +159,7 @@ export function CommandPalette({ open, onClose, onOpenImport }: CommandPalettePr
               {filteredPapers.slice(0, 4).map((paper) => (
                 <div
                   key={paper.id}
-                  onClick={() => handleSelectNav(`/papers?id=${paper.id}`)}
+                  onClick={() => handleSelectNav(`/library?id=${paper.id}`)}
                   style={{
                     display: "flex",
                     alignItems: "center",

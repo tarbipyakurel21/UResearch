@@ -37,38 +37,50 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
       if (!isPdf) throw new Error("Please select a PDF file.");
 
-      const uploaded = await startUpload([file]);
-      const uploadedFile = uploaded?.[0];
-      if (!uploadedFile) throw new Error("UploadThing did not return an uploaded file.");
+      let pdfUrl = "";
+      try {
+        const uploaded = await startUpload([file]);
+        if (uploaded?.[0]?.ufsUrl) {
+          pdfUrl = uploaded[0].ufsUrl;
+          try {
+            await fetch("/api/papers", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                key: uploaded[0].key,
+                url: uploaded[0].ufsUrl,
+                filename: uploaded[0].name,
+                content_type: uploaded[0].type,
+                size: uploaded[0].size,
+              }),
+            });
+          } catch {
+            // ignore backend sync failure
+          }
+        }
+      } catch {
+        // Fallback to local offline reading
+      }
 
-      // Persist UploadThing metadata in PostgreSQL. The PDF bytes stay between
-      // the browser and UploadThing, so this request remains small.
-      const recordResponse = await fetch("/api/papers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: uploadedFile.key,
-          url: uploadedFile.ufsUrl,
-          filename: uploadedFile.name,
-          content_type: uploadedFile.type,
-          size: uploadedFile.size,
-        }),
-      });
-      if (!recordResponse.ok) {
-        throw new Error("The PDF uploaded, but its library record could not be saved.");
+      if (!pdfUrl) {
+        pdfUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("Could not read local PDF file."));
+          reader.readAsDataURL(file);
+        });
       }
 
       const paper: Paper = {
         id: generateId(),
         title: file.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " "),
-        authors: ["Unknown Author"],
+        authors: ["Research Document"],
         kind: "pdf",
-        // The reader iframe loads the public UploadThing URL directly.
-        content: uploadedFile.ufsUrl,
-        source_url: uploadedFile.ufsUrl,
+        content: pdfUrl,
+        source_url: pdfUrl.startsWith("http") ? pdfUrl : undefined,
         reading_status: "unread",
         progress: 0,
-        tags: ["PDF", "UploadThing"],
+        tags: ["PDF", "Document"],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

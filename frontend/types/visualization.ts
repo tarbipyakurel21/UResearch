@@ -2,11 +2,14 @@ import type { FilterConfig } from "./filters";
 
 export type ChartType =
   | "bar"
+  | "horizontal_bar"
+  | "line"
+  | "area"
+  | "scatter"
+  | "donut"
+  | "histogram"
   | "grouped_bar"
   | "stacked_bar"
-  | "line"
-  | "scatter"
-  | "histogram"
   | "box"
   | "heatmap"
   | "violin"

@@ -60,3 +60,18 @@ class ChatRequest(BaseModel):
 class GroundedPrompt(BaseModel):
     prompt: str
     citations: list[dict]
+
+
+class GeminiChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=12000)
+    paper_title: str | None = None
+    paper_abstract: str | None = None
+    context: str | None = None
+    history: list[dict] = Field(default_factory=list)
+
+
+class GeminiChatResponse(BaseModel):
+    answer: str
+    grounded: bool = True
+    model: str = "gemini-2.5-flash"
+

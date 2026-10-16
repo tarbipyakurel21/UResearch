@@ -6,14 +6,10 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BookOpen,
-  Database,
   FilePlus,
-  Home,
   Moon,
   PanelLeft,
-  ScanSearch,
   Search,
-  ShieldCheck,
   Sun,
   User,
 } from "lucide-react";
@@ -24,11 +20,8 @@ import { AuthModal } from "./auth/auth-modal";
 import { listPapers } from "@/lib/persistence/papers";
 
 const navigationItems = [
-  { label: "Overview", href: "/overview", icon: Home, match: ["/overview"] },
-  { label: "Visualize Data", href: "/visualize", icon: BarChart3, match: ["/visualize", "/figures"] },
-  { label: "Datasets", href: "/data", icon: Database, match: ["/data"] },
-  { label: "Papers & AI", href: "/papers", icon: BookOpen, match: ["/papers", "/understand", "/llm"] },
-  { label: "Human Audit", href: "/audit", icon: ScanSearch, match: ["/audit"] },
+  { label: "Library", href: "/library", icon: BookOpen, match: ["/library", "/papers", "/understand", "/discover"] },
+  { label: "Visualization", href: "/visualize", icon: BarChart3, match: ["/visualize", "/data"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -104,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }}
         >
           <Link
-            href="/overview"
+            href="/library"
             style={{
               display: "flex",
               alignItems: "center",
@@ -188,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     }}
                   />
                   {sidebarOpen && <span style={{ flex: 1 }}>{item.label}</span>}
-                  {sidebarOpen && item.label === "Papers & AI" && paperCount > 0 && (
+                  {sidebarOpen && item.label === "Library" && paperCount > 0 && (
                     <span className="badge">{paperCount}</span>
                   )}
                 </Link>
