@@ -26,7 +26,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
 import { detectFormat, parseFile } from "@/lib/parsers";
 import { inferSchema } from "@/lib/schema/infer";
 import { deleteDataset, getDataset, listDatasets, saveDataset } from "@/lib/persistence/datasets";
@@ -126,6 +125,8 @@ export function VisualizationWorkspace() {
   const [pasteData, setPasteData] = useState<string>("");
   const [pasteFormat, setPasteFormat] = useState<"json" | "jsonl" | "csv" | "tsv">("json");
   const [showPasteArea, setShowPasteArea] = useState<boolean>(false);
+  const [showDirectJson, setShowDirectJson] = useState<boolean>(false);
+  const [pasteJsonError, setPasteJsonError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Chart configuration state
@@ -312,6 +313,58 @@ export function VisualizationWorkspace() {
     reader.readAsText(file);
   }
 
+  function formatJsonError(raw: string, errorMsg: string): string {
+    const match = errorMsg.match(/position (\d+)/i);
+    if (match) {
+      const pos = parseInt(match[1], 10);
+      const lines = raw.slice(0, pos).split("\n");
+      const lineNum = lines.length;
+      const colNum = lines[lines.length - 1].length + 1;
+      return `Parse error on line ${lineNum}, col ${colNum}:\n${errorMsg}`;
+    }
+    const lineMatch = errorMsg.match(/line (\d+)/i);
+    if (lineMatch) {
+      return `Parse error on line ${lineMatch[1]}:\n${errorMsg}`;
+    }
+    return `Parse error: ${errorMsg}`;
+  }
+
+  function handleBeautifyJson() {
+    try {
+      const parsed = JSON.parse(pasteData);
+      setPasteData(JSON.stringify(parsed, null, 2));
+      setPasteJsonError(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPasteJsonError(formatJsonError(pasteData, msg));
+    }
+  }
+
+  function handleValidateJson() {
+    try {
+      JSON.parse(pasteData);
+      setPasteJsonError(null);
+      setStatusMessage("Valid JSON structure");
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPasteJsonError(formatJsonError(pasteData, msg));
+    }
+  }
+
+  function handleParsePastedJson() {
+    if (!pasteData.trim()) return;
+    try {
+      const parsed = JSON.parse(pasteData);
+      setPasteJsonError(null);
+      void handleIngest("pasted-data.json", JSON.stringify(parsed), "json");
+      setShowDirectJson(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPasteJsonError(formatJsonError(pasteData, msg));
+    }
+  }
+
   // Delete Current Dataset
   async function handleDeleteDataset(id: string) {
     if (!confirm("Are you sure you want to delete this dataset from local storage?")) return;
@@ -382,30 +435,207 @@ export function VisualizationWorkspace() {
 
   return (
     <div className="content" style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 60 }}>
-      {/* Page Header */}
-      <PageHeader
-        eyebrow="Data Visualization Workbench"
-        title="Visualize Your Research Data"
-        description="Upload JSON, JSONL, or CSV data files. Group, aggregate, and generate interactive charts with instant drill-down inspection."
-        actions={
-          <div className="actions">
+      {/* Minimal Action Toolbar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 20,
+          paddingBottom: 14,
+          borderBottom: "1px solid var(--border)",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Visualization</h1>
+        </div>
+
+        {/* The user-specified buttons: upload a file, json visualization, jsonl visualization */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button
+            className="button primary"
+            style={{ height: 32, fontSize: 12 }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload size={13} /> Upload a File
+          </button>
+          <button
+            className="button"
+            style={{ height: 32, fontSize: 12 }}
+            onClick={() => {
+              setShowDirectJson((prev) => !prev);
+              if (!pasteData.trim()) {
+                setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
+              }
+            }}
+          >
+            <FileCode size={13} style={{ color: "#2563eb" }} /> JSON Visualization
+          </button>
+          <button
+            className="button"
+            style={{ height: 32, fontSize: 12 }}
+            onClick={() => void handleIngest("training-runs.jsonl", SAMPLE_JSONL_DATA, "jsonl")}
+          >
+            <FileText size={13} style={{ color: "#8b5cf6" }} /> JSONL Visualization
+          </button>
+          {dataset && (
             <button
-              className="button primary"
-              onClick={() => {
-                setUploadModalOpen(true);
-                setIngestError(null);
+              className="button ghost"
+              style={{ height: 32, fontSize: 12 }}
+              onClick={handleExportSVG}
+              title="Download SVG Chart"
+            >
+              <Download size={13} /> Export Chart
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ================= DIRECT JSON PASTING & PARSER ================= */}
+      {showDirectJson && (
+        <div
+          className="panel"
+          style={{
+            marginBottom: 24,
+            padding: "16px 20px",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            background: "var(--card)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+              paddingBottom: 8,
+              borderBottom: "1px solid var(--border)",
+              flexWrap: "wrap",
+              gap: 8,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13.5 }}>
+              <FileCode size={15} style={{ color: "#2563eb" }} />
+              <span>Direct JSON Editor & Parser</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <button
+                className="button ghost"
+                style={{ height: 26, fontSize: 11, padding: "0 8px" }}
+                onClick={() => {
+                  setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
+                  setPasteJsonError(null);
+                }}
+              >
+                Sample JSON
+              </button>
+              <button
+                className="button ghost"
+                style={{ height: 26, fontSize: 11, padding: "0 8px" }}
+                onClick={handleBeautifyJson}
+              >
+                Beautify
+              </button>
+              <button
+                className="button ghost"
+                style={{ height: 26, fontSize: 11, padding: "0 8px" }}
+                onClick={handleValidateJson}
+              >
+                Validate
+              </button>
+              <button
+                className="button ghost"
+                style={{ height: 26, fontSize: 11, padding: "0 8px" }}
+                onClick={() => {
+                  setPasteData("");
+                  setPasteJsonError(null);
+                }}
+              >
+                Clear
+              </button>
+              {datasets.length > 0 && (
+                <button
+                  className="button ghost"
+                  style={{ height: 26, width: 26, padding: 0 }}
+                  onClick={() => setShowDirectJson(false)}
+                  title="Close"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <textarea
+              value={pasteData}
+              onChange={(e) => {
+                setPasteData(e.target.value);
+                if (pasteJsonError) setPasteJsonError(null);
+              }}
+              placeholder='Paste raw JSON here: e.g. [{ "category": "A", "score": 92 }, ...]'
+              rows={9}
+              style={{
+                width: "100%",
+                fontFamily: "var(--font-mono)",
+                fontSize: 12,
+                lineHeight: 1.5,
+                padding: "10px 12px",
+                borderRadius: 6,
+                border: pasteJsonError ? "1px solid var(--danger)" : "1px solid var(--border)",
+                background: "var(--background)",
+                color: "var(--foreground)",
+                resize: "vertical",
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontSize: 11,
+                color: "var(--muted-foreground)",
+                fontFamily: "var(--font-mono)",
+                marginTop: 6,
               }}
             >
-              <Upload size={14} /> Upload Dataset
-            </button>
-            {dataset && (
-              <button className="button" onClick={handleExportSVG} title="Download SVG Chart">
-                <Download size={14} /> Export Chart
+              <div>
+                Lines: {pasteData ? pasteData.split("\n").length : 0} · Size: {new Blob([pasteData]).size} B
+              </div>
+              <button
+                className="button primary"
+                style={{ height: 28, fontSize: 12, padding: "0 14px" }}
+                disabled={!pasteData.trim() || ingesting}
+                onClick={handleParsePastedJson}
+              >
+                Parse & Visualize
               </button>
+            </div>
+
+            {pasteJsonError && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  background: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  color: "var(--danger)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {pasteJsonError}
+              </div>
             )}
           </div>
-        }
-      />
+        </div>
+      )}
 
       {/* Success / Status Banner */}
       {statusMessage && (
@@ -508,42 +738,19 @@ export function VisualizationWorkspace() {
       )}
 
       {/* ================= NO DATASETS EMPTY STATE ================= */}
-      {datasets.length === 0 && !loading && (
+      {datasets.length === 0 && !loading && !showDirectJson && (
         <div
           className="panel"
           style={{
-            padding: 40,
+            padding: 32,
             textAlign: "center",
-            maxWidth: 720,
-            margin: "20px auto",
+            maxWidth: 620,
+            margin: "24px auto",
           }}
         >
           <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: "var(--scholar-accent-soft)",
-              color: "var(--scholar-accent)",
-              display: "grid",
-              placeItems: "center",
-              margin: "0 auto 16px",
-            }}
-          >
-            <BarChart3 size={28} />
-          </div>
-
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-            Upload a File to Start Visualizing
-          </h2>
-          <p style={{ fontSize: 13, color: "var(--muted-foreground)", maxWidth: 480, margin: "0 auto 24px" }}>
-            Upload your scientific experiment files, model benchmarks, evaluation runs, or tabular research data in{" "}
-            <strong>JSON</strong>, <strong>JSONL</strong>, <strong>CSV</strong>, or <strong>TSV</strong> format.
-          </p>
-
-          <div
             className={`dropzone ${isDragging ? "drag" : ""}`}
-            style={{ padding: "36px 20px", marginBottom: 24, cursor: "pointer" }}
+            style={{ padding: "32px 20px", marginBottom: 20, cursor: "pointer" }}
             onDragOver={(e) => {
               e.preventDefault();
               setIsDragging(true);
@@ -556,47 +763,38 @@ export function VisualizationWorkspace() {
             }}
             onClick={() => fileInputRef.current?.click()}
           >
-            <FileUp size={36} style={{ color: "var(--scholar-accent)", margin: "0 auto 12px" }} />
-            <strong style={{ fontSize: 14 }}>Drop your file here or click to browse</strong>
-            <p style={{ margin: "6px 0", fontSize: 12, color: "var(--muted-foreground)" }}>
-              Accepts .json, .jsonl, .ndjson, .csv, .tsv
+            <FileUp size={32} style={{ color: "var(--scholar-accent)", margin: "0 auto 10px" }} />
+            <strong style={{ fontSize: 13.5 }}>Drop file here or click to browse</strong>
+            <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "var(--muted-foreground)" }}>
+              .json, .jsonl, .csv, .tsv
             </p>
-            <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 12 }}>
-              <span className="badge">.JSON</span>
-              <span className="badge">.JSONL</span>
-              <span className="badge">.CSV</span>
-              <span className="badge">.TSV</span>
-            </div>
           </div>
 
-          {/* Sample Load Buttons */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-foreground)", marginBottom: 12 }}>
-              Or try with pre-built scientific sample datasets:
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-              <button
-                className="button"
-                style={{ fontSize: 12 }}
-                onClick={() => void handleIngest("llm-safety.json", JSON.stringify(sampleLlmSafety))}
-              >
-                <FileCode size={13} style={{ color: "#2563eb" }} /> LLM Safety Benchmark (JSON)
-              </button>
-              <button
-                className="button"
-                style={{ fontSize: 12 }}
-                onClick={() => void handleIngest("model-benchmarks.csv", SAMPLE_CSV_DATA)}
-              >
-                <FileSpreadsheet size={13} style={{ color: "#10b981" }} /> Model Evaluations (CSV)
-              </button>
-              <button
-                className="button"
-                style={{ fontSize: 12 }}
-                onClick={() => void handleIngest("training-runs.jsonl", SAMPLE_JSONL_DATA)}
-              >
-                <FileText size={13} style={{ color: "#8b5cf6" }} /> Architecture Runs (JSONL)
-              </button>
-            </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              className="button primary"
+              style={{ fontSize: 12.5 }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={13} /> Upload a File
+            </button>
+            <button
+              className="button"
+              style={{ fontSize: 12.5 }}
+              onClick={() => {
+                setShowDirectJson(true);
+                setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
+              }}
+            >
+              <FileCode size={13} style={{ color: "#2563eb" }} /> JSON Visualization
+            </button>
+            <button
+              className="button"
+              style={{ fontSize: 12.5 }}
+              onClick={() => void handleIngest("training-runs.jsonl", SAMPLE_JSONL_DATA, "jsonl")}
+            >
+              <FileText size={13} style={{ color: "#8b5cf6" }} /> JSONL Visualization
+            </button>
           </div>
         </div>
       )}

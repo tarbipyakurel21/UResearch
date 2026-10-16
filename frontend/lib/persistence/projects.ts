@@ -9,7 +9,13 @@ export async function listProjects(): Promise<ResearchProject[]> {
     const db = await getDB();
     const record = await db.get("settings", PROJECTS_KEY);
     if (record?.value && Array.isArray(record.value) && record.value.length > 0) {
-      return record.value as ResearchProject[];
+      const existing = [...(record.value as ResearchProject[])];
+      for (const sp of SAMPLE_PROJECTS) {
+        if (!existing.some((p) => p.id === sp.id)) {
+          existing.unshift(sp);
+        }
+      }
+      return existing;
     }
   } catch {
     // IndexedDB not ready or error, fallback to localStorage
@@ -20,7 +26,14 @@ export async function listProjects(): Promise<ResearchProject[]> {
       const stored = localStorage.getItem(PROJECTS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as ResearchProject[];
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          for (const sp of SAMPLE_PROJECTS) {
+            if (!parsed.some((p) => p.id === sp.id)) {
+              parsed.unshift(sp);
+            }
+          }
+          return parsed;
+        }
       }
     } catch {
       // ignore

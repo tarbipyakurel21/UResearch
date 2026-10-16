@@ -2,6 +2,49 @@ import type { Paper, ResearchProject } from "@/types/paper";
 
 export const SAMPLE_PAPERS: Paper[] = [
   {
+    id: "paper-eegnet-2018",
+    title: "EEGNet: A Compact Convolutional Neural Network for EEG-based Brain-Computer Interfaces",
+    authors: [
+      "Vernon J. Lawhern",
+      "Amelia J. Solon",
+      "Nicholas R. Waytowich",
+      "Hyeon-Min Gordon",
+      "Chou P. Hung",
+      "Brent J. Lance",
+    ],
+    venue: "Journal of Neural Engineering",
+    year: 2018,
+    doi: "10.1088/1741-2552/aace8c",
+    source_url: "https://iopscience.iop.org/article/10.1088/1741-2552/aace8c",
+    kind: "text",
+    tags: ["EEG", "Brain-Computer Interface", "CNN", "Neuroscience"],
+    reading_status: "starred",
+    progress: 100,
+    abstract:
+      "Electroencephalography (EEG)-based brain-computer interfaces (BCIs) require decoding neural signatures from noisy and non-stationary signals. We propose EEGNet, a compact Convolutional Neural Network architecture designed for EEG-based BCIs across various BCI paradigms including P300 visual-evoked potentials, error-related negativity (ERN), motor imagery (MI), and steady-state visual evoked potentials (SSVEP).",
+    content: `# EEGNet: A Compact Convolutional Neural Network for EEG-based Brain-Computer Interfaces
+
+Vernon J. Lawhern, Amelia J. Solon, Nicholas R. Waytowich, Hyeon-Min Gordon, Chou P. Hung, Brent J. Lance
+
+## Abstract
+Electroencephalography (EEG)-based brain-computer interfaces (BCIs) require decoding neural signatures from noisy and non-stationary signals. We propose EEGNet, a compact Convolutional Neural Network architecture designed for EEG-based BCIs across various BCI paradigms including P300 visual-evoked potentials, error-related negativity (ERN), motor imagery (MI), and steady-state visual evoked potentials (SSVEP). EEGNet encapsulates 2D temporal convolution followed by depthwise separable convolution to learn frequency-specific spatial filters while drastically reducing trainable parameters compared to previous architectures.
+
+## 1. Introduction
+Brain-computer interfaces (BCIs) provide a direct communication pathway between the human brain and external devices. Developing robust BCI classifiers is notoriously difficult due to low signal-to-noise ratio, non-stationarity, and subject-to-subject variability. While standard approaches employ handcrafted spatial filters such as Filter Bank Common Spatial Patterns (FBCSP), deep neural networks can learn representations end-to-end directly from raw or minimally pre-processed EEG data.
+
+## 2. EEGNet Architecture
+EEGNet is structured into three core convolutional stages:
+1. Temporal Convolution: Learns 2D bandpass filters across time samples.
+2. Depthwise Convolution: Learns spatial filters across EEG recording electrodes for each temporal feature map.
+3. Separable Convolution: Combines spatial and point-wise convolutions to reduce parameter count and computational complexity.
+
+## 3. Results
+Across multiple public BCI datasets, EEGNet achieves competitive or superior performance to state-of-the-art models while using an order of magnitude fewer parameters.`,
+    annotations: [],
+    created_at: "2026-10-13T15:26:00.000Z",
+    updated_at: "2026-10-13T15:26:00.000Z",
+  },
+  {
     id: "paper-attention-2017",
     title: "Attention Is All You Need",
     authors: ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones", "Aidan N. Gomez", "Łukasz Kaiser", "Illia Polosukhin"],
@@ -218,6 +261,27 @@ GPT-3 achieves high proficiency on translation, question answering, cloze tasks,
 ];
 
 export const SAMPLE_PROJECTS: ResearchProject[] = [
+  {
+    id: "proj-eeg",
+    name: "EEG",
+    description: "Brain-Computer Interfaces and EEG signal decoding",
+    paperIds: ["paper-eegnet-2018"],
+    columns: [
+      { id: "col-model", name: "Model Architecture", description: "Convolutional neural network topology" },
+      { id: "col-paradigm", name: "BCI Paradigm", description: "P300, ERN, Motor Imagery, SSVEP" },
+      { id: "col-metric", name: "Key Result", description: "Classification performance across subjects" }
+    ],
+    extractions: [
+      {
+        paperId: "paper-eegnet-2018",
+        columnId: "col-model",
+        value: "Depthwise separable CNN with temporal & spatial filters",
+        sectionOrPage: "§2 Architecture"
+      }
+    ],
+    created_at: "2026-10-14T17:06:00.000Z",
+    updated_at: "2026-10-14T17:06:00.000Z"
+  },
   {
     id: "proj-transformer-synthesis",
     name: "Foundation Models & Literature Synthesis",

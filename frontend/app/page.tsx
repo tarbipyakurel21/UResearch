@@ -2,712 +2,845 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
-  BarChart3,
-  BookOpen,
-  Bot,
-  Check,
-  Columns,
-  Database,
-  ExternalLink,
-  Eye,
+  Clock,
+  Compass,
   FileText,
-  Highlighter,
-  Lock,
+  Folder,
+  FolderPlus,
+  Globe,
   Moon,
-  ScanSearch,
+  PanelLeft,
+  Plus,
   Search,
-  ShieldCheck,
-  Sparkles,
   Sun,
-  User,
+  Upload,
+  X,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
-import { AuthModal, type UserProfile } from "@/components/auth/auth-modal";
+import { CommandPalette } from "@/components/command-palette";
+import { PaperImportModal } from "@/components/paper-import-modal";
+import { listPapers } from "@/lib/persistence/papers";
+import { listProjects, saveProject } from "@/lib/persistence/projects";
+import type { Paper, ResearchProject } from "@/types/paper";
 
-export default function LandingPage() {
+export default function HomePage() {
+  const router = useRouter();
   const { resolvedTheme, toggleTheme } = useTheme();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [projects, setProjects] = useState<ResearchProject[]>([]);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("uresearch_user");
-      if (stored) {
-        setCurrentUser(JSON.parse(stored));
-      }
-    } catch {
-      // ignore
+    async function loadData() {
+      const [allPapers, allProjects] = await Promise.all([listPapers(), listProjects()]);
+      setPapers(allPapers);
+      setProjects(allProjects);
     }
-
-    function onAuthChanged() {
-      try {
-        const stored = localStorage.getItem("uresearch_user");
-        setCurrentUser(stored ? JSON.parse(stored) : null);
-      } catch {
-        // ignore
-      }
-    }
-
-    window.addEventListener("uresearch_auth_changed", onAuthChanged);
-    return () => window.removeEventListener("uresearch_auth_changed", onAuthChanged);
+    void loadData();
   }, []);
 
-  function handleOpenAuth(mode: "signin" | "signup") {
-    setAuthMode(mode);
-    setAuthModalOpen(true);
+  // Global Cmd+K
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  async function handleCreateProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    const newProj: ResearchProject = {
+      id: `proj-${Date.now()}`,
+      name: newProjectName.trim(),
+      description: "",
+      paperIds: papers.length > 0 ? [papers[0].id] : [],
+      columns: [
+        { id: "col-obj", name: "Objective" },
+        { id: "col-res", name: "Result" },
+      ],
+      extractions: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await saveProject(newProj);
+    const updated = await listProjects();
+    setProjects(updated);
+    setNewProjectName("");
+    setNewProjectModalOpen(false);
   }
 
-  function handleSignOut() {
-    try {
-      localStorage.removeItem("uresearch_user");
-      setCurrentUser(null);
-      window.dispatchEvent(new Event("uresearch_auth_changed"));
-    } catch {
-      // ignore
-    }
-  }
+  // Find recent papers
+  const recentPapers = papers.slice(0, 3);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--foreground)" }}>
-      {/* Top Academic Navigation Bar */}
-      <header className="landing-navbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              background: "var(--foreground)",
-              color: "var(--background)",
-              display: "grid",
-              placeItems: "center",
-              fontWeight: 800,
-              fontSize: 13,
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            UR
-          </div>
-          <span style={{ fontSize: 15, fontWeight: 750, letterSpacing: "-0.02em" }}>
-            UResearch
-          </span>
-          <span
-            style={{
-              fontSize: 10,
-              padding: "1px 6px",
-              borderRadius: 999,
-              background: "var(--scholar-accent-soft)",
-              color: "var(--scholar-accent)",
-              fontWeight: 600,
-            }}
-          >
-            Workspace
-          </span>
-        </div>
-
-        {/* Center Nav Links */}
-        <nav style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <Link
-            href="/library"
-            style={{ fontSize: 13, textDecoration: "none", color: "var(--muted-foreground)", fontWeight: 500 }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
-          >
-            Library
-          </Link>
-          <Link
-            href="/visualize"
-            style={{ fontSize: 13, textDecoration: "none", color: "var(--muted-foreground)", fontWeight: 500 }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
-          >
-            Visualization
-          </Link>
-        </nav>
-
-        {/* Right Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "var(--background)",
+        color: "var(--foreground)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Top Bar */}
+      <header
+        style={{
+          height: 54,
+          padding: "0 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        {/* Left: Sidebar Toggle + Open Paper */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
+            onClick={() => setDrawerOpen(true)}
             className="button ghost"
-            style={{ height: 30, width: 30, padding: 0 }}
-            onClick={toggleTheme}
-            title="Toggle theme"
+            style={{ width: 32, height: 32, padding: 0 }}
+            title="Toggle Menu"
           >
-            {resolvedTheme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            <PanelLeft size={16} />
           </button>
 
-          {currentUser ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  background: "var(--secondary)",
-                  fontSize: 12,
-                }}
-              >
-                <User size={13} style={{ color: "var(--scholar-accent)" }} />
-                <span style={{ fontWeight: 600 }}>{currentUser.name}</span>
-              </div>
-              <button
-                className="button ghost"
-                style={{ height: 30, fontSize: 12, padding: "0 8px" }}
-                onClick={handleSignOut}
-              >
-                Sign Out
-              </button>
-              <Link
-                href="/library"
-                className="button primary"
-                style={{
-                  height: 30,
-                  fontSize: 12,
-                  padding: "0 12px",
-                  background: "var(--scholar-accent)",
-                  borderColor: "var(--scholar-accent)",
-                }}
-              >
-                Open Library
-              </Link>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button
-                className="button ghost"
-                style={{ height: 30, fontSize: 12, padding: "0 10px" }}
-                onClick={() => handleOpenAuth("signin")}
-              >
-                Sign In
-              </button>
-              <button
-                className="button"
-                style={{ height: 30, fontSize: 12, padding: "0 10px" }}
-                onClick={() => handleOpenAuth("signup")}
-              >
-                Sign Up
-              </button>
-              <Link
-                href="/library"
-                className="button primary"
-                style={{
-                  height: 30,
-                  fontSize: 12,
-                  padding: "0 12px",
-                  background: "var(--scholar-accent)",
-                  borderColor: "var(--scholar-accent)",
-                }}
-              >
-                Launch Library
-              </Link>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="landing-hero">
-        <div className="landing-badge">
-          <ShieldCheck size={13} />
-          <span>Local-First Academic Workspace · 100% Private</span>
-        </div>
-
-        <h1 className="landing-title">
-          The Modern Academic Paper<br />Reading Workspace
-        </h1>
-
-        <p className="landing-subtitle">
-          Distraction-free literature reading, grounded citation verification, and private local-first intelligence built for rigorous research. Prioritize the paper with resizable multi-column workspaces.
-        </p>
-
-        <div className="landing-actions">
           <Link
-            href="/library"
-            className="button primary"
+            href="/"
             style={{
-              height: 40,
-              fontSize: 13.5,
-              fontWeight: 650,
-              padding: "0 20px",
-              gap: 8,
-              background: "var(--scholar-accent)",
-              borderColor: "var(--scholar-accent)",
-            }}
-          >
-            <BookOpen size={15} />
-            <span>Open Research Library</span>
-            <ArrowRight size={14} />
-          </Link>
-
-          {!currentUser && (
-            <button
-              className="button"
-              style={{ height: 40, fontSize: 13, fontWeight: 600, padding: "0 16px", gap: 6 }}
-              onClick={() => handleOpenAuth("signup")}
-            >
-              <User size={14} />
-              <span>Create Free Account</span>
-            </button>
-          )}
-
-          <Link
-            href="/visualize"
-            className="button ghost"
-            style={{
-              height: 40,
-              fontSize: 13,
-              padding: "0 14px",
-              border: "1px solid var(--border)",
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: 8,
+              textDecoration: "none",
+              color: "inherit",
+              fontWeight: 650,
+              fontSize: 14.5,
+              letterSpacing: "-0.01em",
             }}
           >
-            <BarChart3 size={14} />
-            <span>Data Visualizer</span>
+            <div
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 4,
+                background: "rgba(37, 99, 235, 0.12)",
+                color: "#2563eb",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <FileText size={13} />
+            </div>
+            <span>Open Paper</span>
           </Link>
         </div>
 
-        {/* Live Interactive Workspace Preview Frame */}
-        <div className="landing-preview-frame">
-          {/* Mock Window Topbar */}
+        {/* Center: Search papers, projects, or ask a question... [ ⌘ K ] */}
+        <div style={{ flex: 1, maxWidth: 540, margin: "0 20px" }}>
           <div
+            onClick={() => setCommandPaletteOpen(true)}
             style={{
+              width: "100%",
               height: 38,
+              borderRadius: 9999,
+              border: "1px solid var(--border)",
               background: "var(--card)",
-              borderBottom: "1px solid var(--border)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               padding: "0 14px",
-              fontSize: 11,
-              color: "var(--muted-foreground)",
+              cursor: "pointer",
+              transition: "border-color 0.15s ease",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", gap: 5 }}>
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
-              </div>
-              <span style={{ fontWeight: 650, color: "var(--foreground)" }}>
-                Attention Is All You Need (Vaswani et al., 2017)
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--muted-foreground)", fontSize: 13 }}>
+              <Search size={15} />
+              <span>Search papers, projects, or ask a question...</span>
             </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="badge primary" style={{ fontSize: 10 }}>NEURIPS 2017</span>
-              <span>Page 1 / 5</span>
-              <span style={{ color: "var(--success)", fontWeight: 600 }}>● Local IndexedDB</span>
-            </div>
+            <kbd
+              style={{
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                background: "var(--secondary)",
+                padding: "2px 6px",
+                borderRadius: 4,
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              ⌘ K
+            </kbd>
           </div>
+        </div>
 
-          {/* 3-Column Preview Mockup */}
-          <div
+        {/* Right: Theme Toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={toggleTheme}
+            className="button ghost"
+            style={{ width: 32, height: 32, padding: 0 }}
+            title="Toggle theme"
+          >
+            {resolvedTheme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main style={{ flex: 1, maxWidth: 1040, width: "100%", margin: "0 auto", padding: "48px 24px 64px" }}>
+        {/* The ONLY Three Buttons from Screenshot */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 16,
+            marginBottom: 48,
+          }}
+        >
+          {/* Button 1: Upload Paper */}
+          <button
+            onClick={() => setImportModalOpen(true)}
             style={{
-              display: "grid",
-              gridTemplateColumns: "200px 1fr 300px",
-              height: 480,
-              background: "var(--bg-academic)",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
               textAlign: "left",
-              overflow: "hidden",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.boxShadow = "0 6px 18px rgba(0,0,0,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           >
-            {/* Left Mock Sidebar */}
             <div
               style={{
-                borderRight: "1px solid var(--border)",
-                background: "var(--card)",
-                padding: "10px 12px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 750, textTransform: "uppercase", color: "var(--muted-foreground)" }}>
-                Document Outline
-              </div>
-              <div style={{ display: "grid", gap: 4, fontSize: 11 }}>
-                <div style={{ padding: "4px 6px", borderRadius: 4, background: "var(--scholar-accent-soft)", color: "var(--scholar-accent)", fontWeight: 600 }}>
-                  Abstract
-                </div>
-                <div style={{ padding: "4px 6px", color: "var(--muted-foreground)" }}>
-                  1. Introduction
-                </div>
-                <div style={{ padding: "4px 6px", color: "var(--muted-foreground)" }}>
-                  2. Background
-                </div>
-                <div style={{ padding: "4px 6px", color: "var(--muted-foreground)" }}>
-                  3. Model Architecture
-                </div>
-                <div style={{ padding: "4px 6px", color: "var(--muted-foreground)" }}>
-                  4. Why Self-Attention
-                </div>
-                <div style={{ padding: "4px 6px", color: "var(--muted-foreground)" }}>
-                  5. Conclusion
-                </div>
-              </div>
-
-              <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted-foreground)", marginBottom: 4 }}>
-                  Saved Notes (2)
-                </div>
-                <div style={{ fontSize: 10.5, padding: 6, background: "var(--secondary)", borderRadius: 4 }}>
-                  <span className="hl-yellow" style={{ padding: "0 2px" }}>&ldquo;eschewing recurrence...&rdquo;</span>
-                  <div style={{ color: "var(--muted-foreground)", fontSize: 9.5, marginTop: 2 }}>Core thesis</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Center Paper Sheet Preview */}
-            <div
-              style={{
-                padding: "24px 28px",
-                overflowY: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                position: "relative",
-              }}
-            >
-              {/* Mock Floating Selection Pill */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: 70,
-                  left: "35%",
-                  zIndex: 20,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                  padding: "3px 6px",
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-                  fontSize: 10.5,
-                }}
-              >
-                <span className="badge" style={{ background: "#fef08a", color: "#854d0e", fontSize: 9.5 }}>Highlight</span>
-                <span className="button ghost" style={{ height: 20, padding: "0 4px", fontSize: 10 }}>Note</span>
-                <span className="button primary" style={{ height: 20, padding: "0 6px", fontSize: 10, background: "var(--scholar-accent)", color: "white" }}>
-                  <Sparkles size={9} style={{ marginRight: 3 }} /> Explain
-                </span>
-                <span className="button ghost" style={{ height: 20, padding: "0 4px", fontSize: 10 }}>Ask AI</span>
-              </div>
-
-              <div
-                className="academic-page-sheet"
-                style={{
-                  width: "100%",
-                  maxWidth: 520,
-                  padding: "24px 30px",
-                  fontSize: 11,
-                  lineHeight: 1.6,
-                }}
-              >
-                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, fontFamily: "Georgia, serif" }}>
-                  Attention Is All You Need
-                </h2>
-                <div style={{ fontSize: 9.5, color: "var(--muted-foreground)", marginBottom: 12 }}>
-                  Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, et al.
-                </div>
-                <div style={{ background: "var(--bg-academic)", padding: "8px 10px", borderRadius: 4, marginBottom: 12 }}>
-                  <strong style={{ fontSize: 9.5, textTransform: "uppercase", color: "var(--scholar-accent)" }}>Abstract — </strong>
-                  The dominant sequence transduction models are based on complex recurrent or convolutional neural networks. We propose a simple network architecture, the Transformer, based solely on attention mechanisms...
-                </div>
-                <p style={{ margin: "6px 0" }}>
-                  <mark className="hl-yellow" style={{ padding: "1px 2px" }}>
-                    In this work we propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism
-                  </mark> to draw global dependencies between input and output.
-                </p>
-              </div>
-            </div>
-
-            {/* Right Mock AI Copilot */}
-            <div
-              style={{
-                borderLeft: "1px solid var(--border)",
-                background: "var(--card)",
-                padding: "12px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--scholar-accent)" }}>
-                <Sparkles size={12} />
-                <span>AI Research Copilot</span>
-              </div>
-
-              <div style={{ padding: "8px 10px", background: "var(--secondary)", borderRadius: 6, fontSize: 11 }}>
-                What is the core contribution of this paper?
-              </div>
-
-              <div style={{ padding: "10px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 10.5, lineHeight: 1.5 }}>
-                <div style={{ fontWeight: 650, marginBottom: 4 }}>Synthesis & Evidence:</div>
-                The authors replace sequential recurrence with full parallel self-attention.
-                <div style={{ marginTop: 6, display: "flex", gap: 4 }}>
-                  <span className="citation-chip" style={{ fontSize: 9.5 }}>
-                    <FileText size={8} /> [p. 1, Abstract]
-                  </span>
-                  <span className="citation-chip" style={{ fontSize: 9.5 }}>
-                    <FileText size={8} /> [p. 3, §3.2]
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
-                <div style={{ background: "var(--secondary)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "var(--muted-foreground)" }}>
-                  Ask about methodology...
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature Value Props Section */}
-      <section style={{ maxWidth: 1100, margin: "0 auto", padding: "64px 24px" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8 }}>
-            Engineered for Deep Literature Review
-          </h2>
-          <p style={{ fontSize: 14, color: "var(--muted-foreground)", maxWidth: 540, margin: "0 auto" }}>
-            A disciplined academic environment that treats the paper as the primary object while embedding intelligent verification seamlessly into the reading flow.
-          </p>
-        </div>
-
-        <div className="grid cols-3" style={{ gap: 20 }}>
-          {/* Card 1 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "var(--scholar-accent-soft)",
-                color: "var(--scholar-accent)",
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: "var(--secondary)",
+                color: "var(--foreground)",
                 display: "grid",
                 placeItems: "center",
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
-              <BookOpen size={18} />
+              <Upload size={18} />
             </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Prioritize the Paper
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              The large central reading workspace visually dominates the screen. Enjoy authentic white paper sheets on a warm off-white canvas with zoom controls, in-document search, and page navigation.
-            </p>
-          </div>
-
-          {/* Card 2 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "rgba(16, 185, 129, 0.1)",
-                color: "#10b981",
-                display: "grid",
-                placeItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <Sparkles size={18} />
+            <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 4 }}>
+              Upload Paper
             </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Grounded Citation Chips
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              AI responses generate interactive citation chips like <code>[p. 3, §3.2]</code>. Click any chip to smoothly scroll back to the exact passage in the paper with an illuminating focus pulse.
-            </p>
-          </div>
-
-          {/* Card 3 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "rgba(139, 92, 246, 0.1)",
-                color: "#8b5cf6",
-                display: "grid",
-                placeItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <Highlighter size={18} />
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+              Start your next study
             </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Contextual Selection Actions
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              Select any excerpt in the document to instantly Highlight, attach Margin Notes, request conceptual AI Explanations, or formulate targeted research queries.
-            </p>
-          </div>
+          </button>
 
-          {/* Card 4 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "rgba(245, 158, 11, 0.1)",
-                color: "#f59e0b",
-                display: "grid",
-                placeItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <Columns size={18} />
-            </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Cursor-Adjustable Resizing
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              Freely drag the divider handles between the navigation sidebar, paper viewer, and AI assistant to adjust your workspace width to your exact reading preferences.
-            </p>
-          </div>
-
-          {/* Card 5 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "rgba(59, 130, 246, 0.1)",
-                color: "#3b82f6",
-                display: "grid",
-                placeItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <Lock size={18} />
-            </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              100% Private & Local-First
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              Your research literature, highlights, annotations, and datasets are stored securely within your browser&apos;s local IndexedDB. Works offline with zero third-party telemetry.
-            </p>
-          </div>
-
-          {/* Card 6 */}
-          <div className="panel" style={{ padding: 22 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: "rgba(239, 68, 68, 0.1)",
-                color: "#ef4444",
-                display: "grid",
-                placeItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <BarChart3 size={18} />
-            </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-              Interactive Data Visualization
-            </h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
-              Upload research datasets in JSON, JSONL, CSV, or TSV format. Plot interactive distributions, line trends, scatter plots, and inspect contributing records.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Bottom CTA Banner */}
-      <section
-        style={{
-          borderTop: "1px solid var(--border)",
-          background: "var(--secondary)",
-          padding: "54px 24px",
-          textAlign: "center",
-        }}
-      >
-        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
-          Ready for Focused Academic Reading?
-        </h2>
-        <p style={{ fontSize: 13.5, color: "var(--muted-foreground)", marginBottom: 24 }}>
-          Load pre-indexed machine learning papers or import your own PDF and arXiv preprints today.
-        </p>
-        <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
-          <Link
-            href="/library"
-            className="button primary"
+          {/* Button 2: New Project */}
+          <button
+            onClick={() => setNewProjectModalOpen(true)}
             style={{
-              height: 38,
-              fontSize: 13,
-              fontWeight: 650,
-              padding: "0 18px",
-              background: "var(--scholar-accent)",
-              borderColor: "var(--scholar-accent)",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              textAlign: "left",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.boxShadow = "0 6px 18px rgba(0,0,0,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           >
-            Launch Research Library
-          </Link>
-          {!currentUser && (
-            <button
-              className="button"
-              style={{ height: 38, fontSize: 13, padding: "0 16px" }}
-              onClick={() => handleOpenAuth("signup")}
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: "var(--secondary)",
+                color: "var(--foreground)",
+                display: "grid",
+                placeItems: "center",
+                marginBottom: 16,
+              }}
             >
-              Create Account
-            </button>
-          )}
-        </div>
-      </section>
+              <FolderPlus size={18} />
+            </div>
+            <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 4 }}>
+              New Project
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+              Organize your research
+            </div>
+          </button>
 
-      {/* Footer */}
+          {/* Button 3: Discover Research */}
+          <button
+            onClick={() => router.push("/discover")}
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              textAlign: "left",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.boxShadow = "0 6px 18px rgba(0,0,0,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: "var(--secondary)",
+                color: "var(--foreground)",
+                display: "grid",
+                placeItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Globe size={18} />
+            </div>
+            <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 4 }}>
+              Discover Research
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+              Find relevant research from academic sources
+            </div>
+          </button>
+        </div>
+
+        {/* Two Columns: Active Projects & Recent Papers */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.1fr 0.9fr",
+            gap: 40,
+            alignItems: "start",
+          }}
+        >
+          {/* Left Column: Active Projects (SHOWS PAPERS) */}
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14 }}>
+                <Folder size={16} />
+                <span>Active Projects</span>
+              </div>
+              <Link
+                href="/projects"
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--muted-foreground)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
+              >
+                View all →
+              </Link>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              {projects.length === 0 ? (
+                <div
+                  style={{
+                    padding: "20px",
+                    border: "1px dashed var(--border)",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    color: "var(--muted-foreground)",
+                    textAlign: "center",
+                  }}
+                >
+                  No projects yet. Click &quot;New Project&quot; above to create one.
+                </div>
+              ) : (
+                projects.map((proj) => {
+                  const projPapers = papers.filter((p) => proj.paperIds?.includes(p.id));
+                  return (
+                    <div
+                      key={proj.id}
+                      style={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: "14px 16px",
+                      }}
+                    >
+                      {/* Project Header Row */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: projPapers.length > 0 ? 10 : 0,
+                        }}
+                      >
+                        <span style={{ fontWeight: 650, fontSize: 14 }}>{proj.name}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            fontSize: 11.5,
+                            color: "var(--muted-foreground)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <FileText size={12} />
+                            <span>{projPapers.length || proj.paperIds?.length || 0}</span>
+                          </div>
+                          <span>Tue 05:06 PM</span>
+                        </div>
+                      </div>
+
+                      {/* Active Project's Papers List */}
+                      {projPapers.length > 0 && (
+                        <div style={{ display: "grid", gap: 6, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                          {projPapers.map((paper) => (
+                            <Link
+                              key={paper.id}
+                              href={`/library?id=${paper.id}`}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "6px 8px",
+                                borderRadius: 6,
+                                background: "var(--secondary)",
+                                textDecoration: "none",
+                                color: "inherit",
+                                fontSize: 12.5,
+                                transition: "background 0.1s ease",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--muted)")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "var(--secondary)")}
+                            >
+                              <FileText size={13} style={{ color: "#2563eb", flexShrink: 0 }} />
+                              <span style={{ fontWeight: 550, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {paper.title}
+                              </span>
+                              <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                                {paper.authors?.[0] ? `${paper.authors[0]} +${Math.max(1, paper.authors.length - 1)}` : ""}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Recent Papers */}
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14 }}>
+                <FileText size={16} />
+                <span>Recent Papers</span>
+              </div>
+              <Link
+                href="/library"
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--muted-foreground)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--foreground)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted-foreground)")}
+              >
+                View library →
+              </Link>
+            </div>
+
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              {recentPapers.map((paper) => {
+                const authorsText = paper.authors?.length
+                  ? `${paper.authors[0]} ${paper.authors.length > 1 ? `+${paper.authors.length - 1}` : ""}`
+                  : "Unknown authors";
+
+                return (
+                  <Link
+                    key={paper.id}
+                    href={`/library?id=${paper.id}`}
+                    style={{
+                      width: 200,
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "flex",
+                      flexDirection: "column",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    {/* Realistic Academic Paper Sheet Preview Thumbnail */}
+                    <div
+                      style={{
+                        height: 140,
+                        background: "#f4f4f5",
+                        borderBottom: "1px solid var(--border)",
+                        padding: "10px 14px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: "#ffffff",
+                          borderRadius: 3,
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                          padding: "8px 10px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 7.5,
+                            fontWeight: 700,
+                            lineHeight: 1.2,
+                            color: "#18181b",
+                            textAlign: "center",
+                            fontFamily: "Georgia, serif",
+                            maxHeight: 26,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {paper.title}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 5.5,
+                            color: "#71717a",
+                            textAlign: "center",
+                            marginBottom: 2,
+                          }}
+                        >
+                          {paper.authors?.slice(0, 3).join(", ")}
+                        </div>
+                        {/* Two Column Simulated Text Lines */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 2 }}>
+                          <div style={{ display: "grid", gap: 2 }}>
+                            <div style={{ height: 2, background: "#d4d4d8", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#e4e4e7", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#d4d4d8", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#e4e4e7", borderRadius: 1, width: "80%" }} />
+                          </div>
+                          <div style={{ display: "grid", gap: 2 }}>
+                            <div style={{ height: 2, background: "#d4d4d8", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#e4e4e7", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#d4d4d8", borderRadius: 1 }} />
+                            <div style={{ height: 2, background: "#e4e4e7", borderRadius: 1, width: "70%" }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Paper Card Metadata */}
+                    <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div
+                        style={{
+                          fontWeight: 650,
+                          fontSize: 13,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {paper.title}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>
+                        {authorsText}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10.5,
+                          color: "var(--muted-foreground)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          marginTop: 4,
+                        }}
+                      >
+                        <Clock size={11} />
+                        <span>Mon 03:26 PM</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer from Screenshot */}
       <footer
         style={{
+          marginTop: "auto",
+          padding: "24px 0",
+          textAlign: "center",
           borderTop: "1px solid var(--border)",
-          padding: "20px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          fontSize: 11,
+          fontSize: 12.5,
           color: "var(--muted-foreground)",
-          background: "var(--card)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>UResearch Academic Literature & Data Workbench</span>
-          <span>·</span>
-          <span>Local-First Private Storage</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/library" style={{ color: "inherit", textDecoration: "none" }}>
-            Library
-          </Link>
-          <Link href="/visualize" style={{ color: "inherit", textDecoration: "none" }}>
-            Visualization
-          </Link>
+        <div style={{ display: "flex", justifyContent: "center", gap: 24 }}>
+          <span style={{ cursor: "pointer" }}>Manifesto</span>
+          <span style={{ cursor: "pointer" }}>Blog</span>
+          <span style={{ cursor: "pointer" }}>About</span>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "inherit", textDecoration: "none" }}
+          >
+            GitHub
+          </a>
         </div>
       </footer>
 
-      {/* Global Auth Modal for Sign In / Sign Up */}
-      <AuthModal
-        open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        defaultMode={authMode}
-        onSuccess={(user) => {
-          setCurrentUser(user);
+      {/* Slide-over Drawer for navigation */}
+      {drawerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+          }}
+        >
+          <div
+            onClick={() => setDrawerOpen(false)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(0,0,0,0.3)",
+              backdropFilter: "blur(2px)",
+            }}
+          />
+          <div
+            style={{
+              position: "relative",
+              width: 260,
+              height: "100%",
+              background: "var(--card)",
+              borderRight: "1px solid var(--border)",
+              padding: "20px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              zIndex: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>Navigation</span>
+              <button
+                className="button ghost"
+                style={{ width: 28, height: 28, padding: 0 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <nav style={{ display: "grid", gap: 6 }}>
+              <Link
+                href="/library"
+                className="button ghost"
+                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                <FileText size={15} /> Library ({papers.length})
+              </Link>
+              <Link
+                href="/visualize"
+                className="button ghost"
+                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                <Upload size={15} /> Visualization
+              </Link>
+              <Link
+                href="/projects"
+                className="button ghost"
+                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                <Folder size={15} /> Projects ({projects.length})
+              </Link>
+              <Link
+                href="/discover"
+                className="button ghost"
+                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                <Globe size={15} /> Discover
+              </Link>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* New Project Modal */}
+      {newProjectModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "rgba(0,0,0,0.5)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: 24,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>New Project</div>
+              <button
+                className="button ghost"
+                style={{ width: 28, height: 28, padding: 0 }}
+                onClick={() => setNewProjectModalOpen(false)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProject}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 600, display: "block", marginBottom: 6 }}>
+                  Project Name
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="e.g. EEG, Multimodal Transformers..."
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  autoFocus
+                  style={{ width: "100%", height: 36, fontSize: 13 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  type="button"
+                  className="button ghost"
+                  onClick={() => setNewProjectModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button primary"
+                  disabled={!newProjectName.trim()}
+                >
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Paper Import Modal */}
+      <PaperImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onPaperImported={() => {
+          void listPapers().then(setPapers);
+          setImportModalOpen(false);
         }}
+      />
+
+      {/* Global Command Palette */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenImport={() => setImportModalOpen(true)}
       />
     </div>
   );
