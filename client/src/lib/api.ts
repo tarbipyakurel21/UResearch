@@ -1,4 +1,19 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const CONFIGURED_API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+/**
+ * Vercel serves the Next.js client and FastAPI service behind one deployment
+ * and routes `/api/*` through vercel.json. A preview deployment must therefore
+ * call its own origin rather than the production deployment baked into
+ * NEXT_PUBLIC_API_URL; otherwise credentialed auth requests become cross-origin
+ * and fail CORS before Google OAuth can even start.
+ */
+function getApiBaseUrl(): string {
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')) {
+        return '';
+    }
+
+    return CONFIGURED_API_BASE_URL;
+}
 
 export async function fetchFromApi(endpoint: string, options: RequestInit = {}) {
     const headers: HeadersInit = {};
@@ -8,7 +23,7 @@ export async function fetchFromApi(endpoint: string, options: RequestInit = {}) 
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
         ...options,
         headers: {
             ...headers,
@@ -52,7 +67,7 @@ export async function fetchStreamFromApi(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<ReadableStream<Uint8Array>> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
         ...options,
         headers: {
             ...options.headers,

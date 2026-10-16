@@ -254,7 +254,7 @@ function SubscribedPageContent() {
                 </div>
 
                 <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Welcome to Open Paper - Researcher!
+                    Welcome to UResearch - Researcher!
                 </h2>
                 <p className="text-muted-foreground mb-8 max-w-xl">
                     Your subscription is now active{sessionStatus?.customer_email ? ` for ${sessionStatus.customer_email}` : ''}. Here&apos;s what you can do now:

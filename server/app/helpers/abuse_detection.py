@@ -228,7 +228,7 @@ def send_abuse_alert(new_user: User, matches: list[dict]) -> None:
             to_email=ADMIN_EMAIL,
             subject=f"[Abuse Alert] Suspicious signup: {new_email}",
             html_content=html,
-            from_name="Open Paper Alerts",
+            from_name="UResearch Alerts",
             from_address="noreply@updates.openpaper.ai",
         )
         logger.info(f"Abuse alert sent for new user {new_email}")

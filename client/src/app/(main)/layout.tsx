@@ -22,27 +22,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Open Paper",
+	title: "UResearch",
 	description: "The fastest way to annotate and deeply understand research papers.",
 	icons: {
-		icon: "/icon.svg"
+		icon: "/uresearch-logo.png"
 	},
 	openGraph: {
-		title: "Open Paper",
+		title: "UResearch",
 		description: "The fastest way to annotate and deeply understand research papers.",
 		images: [
 			{
 				url: "https://assets.khoj.dev/openpaper/hero_open_paper2.png",
 				width: 1280,
 				height: 640,
-				alt: "Open Paper",
+				alt: "UResearch",
 			}
 		],
 		type: "website",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Open Paper",
+		title: "UResearch",
 		description: "The fastest way to annotate and deeply understand your research papers.",
 		images: ["https://assets.khoj.dev/openpaper/hero_open_paper2.png"],
 	},

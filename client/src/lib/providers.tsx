@@ -11,13 +11,24 @@ import { useIsDarkMode } from "@/hooks/useDarkMode"
 
 // Note: This provider does not work wherever adblock is enabled.
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
+
     useEffect(() => {
-        posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY as string, {
+        if (!key) return
+
+        posthog.init(key, {
             api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
             person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
             capture_pageview: false // Disable automatic pageview capture, as we capture manually
         })
-    }, [])
+    }, [key])
+
+    // Do not mount PostHog's React provider around an uninitialized singleton.
+    // Mounting it without a key is what emits the "initialized without a token"
+    // warning even when the explicit posthog.init call is skipped above.
+    if (!key) {
+        return <>{children}</>
+    }
 
     return (
         <PHProvider client={posthog}>
@@ -35,7 +46,7 @@ function PostHogPageView() {
 
     // Track pageviews
     useEffect(() => {
-        if (pathname && posthog) {
+        if (pathname && posthog.__loaded) {
             let url = window.origin + pathname
             if (searchParams.toString()) {
                 url = url + "?" + searchParams.toString();

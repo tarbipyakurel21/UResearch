@@ -27,27 +27,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Open Paper",
+	title: "UResearch",
 	description: "The fastest way to annotate and deeply understand research papers.",
 	icons: {
-		icon: "/icon.svg"
+		icon: "/uresearch-logo.png"
 	},
 	openGraph: {
-		title: "Open Paper",
+		title: "UResearch",
 		description: "The fastest way to annotate and deeply understand research papers.",
 		images: [
 			{
 				url: "https://assets.khoj.dev/openpaper/hero_open_paper2.png",
 				width: 1280,
 				height: 640,
-				alt: "Open Paper",
+				alt: "UResearch",
 			}
 		],
 		type: "website",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Open Paper",
+		title: "UResearch",
 		description: "The fastest way to annotate and deeply understand your research papers.",
 		images: ["https://assets.khoj.dev/openpaper/hero_open_paper2.png"],
 	},
@@ -92,12 +92,13 @@ export default function RootLayout({
 										<Separator orientation="vertical" className="mr-2 h-4" />
 										<Link href="/" className="flex flex-1 items-center gap-2 hover:opacity-80 transition-opacity">
 											<Image
-												src="/openpaper.svg"
+												src="/uresearch-logo.png"
 												width={24}
 												height={24}
-												alt="Open Paper Logo"
+												alt="UResearch Logo"
+												className="dark:invert"
 											/>
-											<span className="text-sm font-semibold">Open Paper</span>
+											<span className="text-sm font-semibold">UResearch</span>
 										</Link>
 									{/* Desktop buttons */}
 								<div className="hidden md:flex items-center gap-2">

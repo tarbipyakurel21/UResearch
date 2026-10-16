@@ -209,7 +209,7 @@ export function OPOnboarding() {
 				body: JSON.stringify(payload),
 			});
 
-			toast.success("Profile complete! Welcome to Open Paper.");
+			toast.success("Profile complete! Welcome to UResearch.");
 			const returnTo = localStorage.getItem('returnTo') || '/';
 			localStorage.removeItem('returnTo');
 			router.push(returnTo);
@@ -520,7 +520,7 @@ export function OPOnboarding() {
 					name="referralSource"
 					render={({ field }) => (
 						<FormItem>
-							<FormLabel>How did you hear about Open Paper?</FormLabel>
+							<FormLabel>How did you hear about UResearch?</FormLabel>
 							<Select onValueChange={field.onChange} defaultValue={field.value}>
 								<FormControl>
 									<SelectTrigger>

@@ -28,7 +28,7 @@ Say you're reviewing experiments that report a baseline accuracy and a final acc
 | Per-model F1 score | Mean F1 across models |
 | Treatment and control summaries | Effect size |
 
-The important distinction is that Open Paper does not ask the extraction model to *invent* a derived result as though it appeared verbatim in a PDF. It first extracts the inputs, with citations. Then it calculates the derived column from those inputs.
+The important distinction is that UResearch does not ask the extraction model to *invent* a derived result as though it appeared verbatim in a PDF. It first extracts the inputs, with citations. Then it calculates the derived column from those inputs.
 
 That means you can use tables for work that is genuinely quantitative — not just a prettier way to collect prose.
 
@@ -46,7 +46,7 @@ If a necessary input is missing or unclear, the system leaves the computed value
 
 Tables for literature reviews nearly always need context: authors, year, journal, DOI, institution, and so on.
 
-Open Paper already stores this information with the papers in your library. When a column asks for recognized bibliographic metadata, Data Tables can now prefill it from that stored record instead of spending extraction effort looking for it in the PDF.
+UResearch already stores this information with the papers in your library. When a column asks for recognized bibliographic metadata, Data Tables can now prefill it from that stored record instead of spending extraction effort looking for it in the PDF.
 
 That has a few practical benefits:
 
@@ -60,7 +60,7 @@ Where library metadata is available, it takes precedence. Where it isn't, the ex
 
 We also changed how table schemas are proposed.
 
-Instead of treating a prompt like “compare outcomes across these studies” as an invitation to guess at generic columns, Open Paper first investigates the papers in your project. It looks for the terminology, units, tables, sections, and level of detail the papers actually report before suggesting fields for you to review.
+Instead of treating a prompt like “compare outcomes across these studies” as an invitation to guess at generic columns, UResearch first investigates the papers in your project. It looks for the terminology, units, tables, sections, and level of detail the papers actually report before suggesting fields for you to review.
 
 That matters a lot for quantitative work. “Score” might mean accuracy, AUROC, F1, or a clinical rating scale. “Sample size” might mean the whole cohort, a treatment arm, or a per-dataset evaluation count. A vague column can produce superficially tidy results that aren't comparable.
 

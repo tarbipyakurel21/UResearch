@@ -43,7 +43,7 @@ Based on the evidence blocks, scoring uses **AND across sections, OR within each
 
 ### Benchmark harness
 
-The harness routes each question through Open Paper's full chat-with-paper pipeline — retrieval over the indexed paper, the citation contract that requires the model to anchor each claim to a quoted passage, and the structured-output parser that extracts citations from the model's response.
+The harness routes each question through UResearch's full chat-with-paper pipeline — retrieval over the indexed paper, the citation contract that requires the model to anchor each claim to a quoted passage, and the structured-output parser that extracts citations from the model's response.
 
 ### Metrics
 
@@ -94,7 +94,7 @@ Under the anchored rubric, `completeness` demonstrates meaningful variance. This
 
 ## Results
 
-We ran the benchmark end-to-end through the Open Paper chat-with-paper harness against eight LLMs in two configurations each — a more intelligent model and a faster model: `gemini-3.1-pro-preview` / `gemini-3-flash-preview`, `gpt-5.4` / `gpt-4.1`, `claude-opus-4-7` / `claude-haiku-4-5`, and the Cerebras-hosted `gpt-oss-120b` / `zai-glm-4.7`. Each system answered the same 100-row evenly-spaced sample of the dataset, and each row was graded by the deterministic citation metrics and the LLM evaluator described in *Methods*. Aggregate results are shown below, ranked by a composite of citation-grounding and answer-quality scores.
+We ran the benchmark end-to-end through the UResearch chat-with-paper harness against eight LLMs in two configurations each — a more intelligent model and a faster model: `gemini-3.1-pro-preview` / `gemini-3-flash-preview`, `gpt-5.4` / `gpt-4.1`, `claude-opus-4-7` / `claude-haiku-4-5`, and the Cerebras-hosted `gpt-oss-120b` / `zai-glm-4.7`. Each system answered the same 100-row evenly-spaced sample of the dataset, and each row was graded by the deterministic citation metrics and the LLM evaluator described in *Methods*. Aggregate results are shown below, ranked by a composite of citation-grounding and answer-quality scores.
 
 | Model                    | Cite. Prec | Sect. Cov | Cite. Acc | Refusal | Factual | Compl. | Lat. (s) |
 |--------------------------|-----------:|----------:|----------:|--------:|--------:|-------:|---------:|
@@ -422,7 +422,7 @@ class PaperEvalGeneration(BaseModel):
     )
 ```
 
-The complete benchmark code, including the matcher, the harness, and the LLM evaluator prompt, is available at the Open Paper repository under [`server/evals/`](https://github.com/khoj-ai/openpaper/tree/daa2983eb6268fa24043537862688e6b98636459/server/evals).
+The complete benchmark code, including the matcher, the harness, and the LLM evaluator prompt, is available at the UResearch repository under [`server/evals/`](https://github.com/khoj-ai/openpaper/tree/daa2983eb6268fa24043537862688e6b98636459/server/evals).
 
 ## Appendix C: Additional charts
 

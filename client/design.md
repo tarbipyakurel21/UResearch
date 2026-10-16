@@ -1,6 +1,6 @@
 # Client Design Guide
 
-This document defines how the Open Paper client is built. It is **prescriptive**: where
+This document defines how the UResearch client is built. It is **prescriptive**: where
 the codebase is consistent, this codifies the pattern; where it is inconsistent, this picks
 the convention and the rest should converge over time. When in doubt, follow this doc; if a
 rule here is wrong, change the doc in the same PR that breaks it.
@@ -234,7 +234,7 @@ The visual identity is **blue-forward, with a neutral slate base**. Color carrie
 use it intentionally.
 
 - **Brand color: Tailwind `blue-500`** (with `blue-600` for hover/active and `blue-400` in
-  dark mode). It is by far the most-used accent in the app and signals "Open Paper" /
+  dark mode). It is by far the most-used accent in the app and signals "UResearch" /
   primary-interactive / on-brand emphasis. Reach for the blue scale for branded affordances,
   links, focus accents, and hero/marketing emphasis.
   - Light surfaces: `bg-blue-50` / `bg-blue-100`, text `text-blue-600` / `text-blue-700`.

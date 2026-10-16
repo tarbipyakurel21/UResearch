@@ -75,7 +75,7 @@ Use the `/api/logout` endpoint to log out users. Set `all_devices=true` query pa
 
 ## Zotero OAuth (Account Connect)
 
-Zotero OAuth 1.0a links a user's Zotero library to their existing Open Paper account. It does **not** create login sessions or new users.
+Zotero OAuth 1.0a links a user's Zotero library to their existing UResearch account. It does **not** create login sessions or new users.
 
 ### Setup
 

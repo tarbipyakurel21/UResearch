@@ -15,24 +15,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "Open Paper - Blog",
+    title: "UResearch - Blog",
     description: "The fastest way to annotate, understand, and share your papers. Check out our blog for the latest updates and insights.",
     openGraph: {
-        title: "Open Paper - Blog",
+        title: "UResearch - Blog",
         description: "The fastest way to annotate, understand, and share your papers. Check out our blog for the latest updates and insights.",
         images: [
             {
                 url: "https://assets.khoj.dev/openpaper_meta.png",
                 width: 1280,
                 height: 640,
-                alt: "Open Paper - Blog",
+                alt: "UResearch - Blog",
             }
         ],
         type: "website",
     },
     twitter: {
         card: "summary_large_image",
-        title: "Open Paper - Blog",
+        title: "UResearch - Blog",
         description: "The fastest way to annotate, understand, and share your papers. Check out our blog for the latest updates and insights.",
         images: ["https://assets.khoj.dev/openpaper_meta.png"],
     },
@@ -65,12 +65,13 @@ export default function MdxLayout({ children }: { children: React.ReactNode }) {
                 <main className="container mx-auto py-8">
                     <Link href="/" className="flex items-center justify-center mb-8">
                         <Image
-                            src="/openpaper.svg"
+                            src="/uresearch-logo.png"
                             width={48}
                             height={48}
-                            alt="Open Paper Logo"
+                            alt="UResearch Logo"
+                            className="dark:invert"
                         />
-                        <span className="text-2xl font-bold ml-4">Open Paper</span>
+                        <span className="text-2xl font-bold ml-4">UResearch</span>
                     </Link>
                     <div
                         className="mx-2 md:ml-auto md:mr-auto pb-10 prose prose-headings:mt-8 prose-headings:font-semibold prose-h1:text-5xl prose-h2:text-4xl prose-h3:text-3xl prose-h4:text-2xl prose-h5:text-xl prose-h6:text-lg dark:prose-invert">

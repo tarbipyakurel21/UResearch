@@ -650,7 +650,7 @@ export default function PricingPage() {
             {/* Support Section */}
             <div className="text-center space-y-6 pt-12 border-t border-slate-200 dark:border-slate-700">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Open Paper is a product of{" "}
+                    UResearch is a product of{" "}
                     <a
                         href="https://khoj.dev"
                         target="_blank"

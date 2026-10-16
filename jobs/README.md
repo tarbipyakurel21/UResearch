@@ -1,6 +1,6 @@
 # Jobs Service
 
-The Jobs Service is a Celery-based asynchronous task processing service that handles heavy-duty, long-running jobs for the Annotated Paper application. The first and primary job is PDF processing, which involves parsing uploaded PDF documents, extracting metadata, and preparing them for use in the main application.
+The Jobs Service is a Celery-based asynchronous task processing service that handles heavy-duty, long-running jobs for UResearch. The first and primary job is PDF processing, which involves parsing uploaded PDF documents, extracting metadata, and preparing them for use in the main application.
 
 ## Architecture
 
@@ -165,7 +165,12 @@ The following environment variables are required to run the Jobs Service:
 | `CLOUDFLARE_BUCKET_NAME`| The name of the Cloudflare R2 bucket (if used).  | Yes      |
 | `CELERY_BROKER_URL`     | The URL for the Celery message broker (RabbitMQ).   | Yes      |
 | `CELERY_RESULT_BACKEND` | The URL for the Celery result backend (Redis).   | Yes      |
-| `LLM_API_KEY`           | The API key for the LLM service.                 | Yes      |
+| `GEMINI_API_KEY`        | Gemini API key used by extraction jobs.          | Yes      |
+| `OPENAI_API_KEY`        | OpenAI key when OpenAI-backed jobs are enabled.   | By feature |
+| `ANTHROPIC_API_KEY`     | Anthropic key when Anthropic jobs are enabled.    | By feature |
+| `WEBHOOK_BASE_URL`      | Public/internal URL of the FastAPI server.        | Yes      |
+| `JOBS_INTERNAL_SECRET`  | Shared secret used to authenticate callbacks.     | Yes      |
+| `ZOTERO_SYNC_INTERVAL_SECONDS` | Celery Beat Zotero sync interval.          | No       |
 | `LANGFUSE_PUBLIC_KEY`   | Langfuse public key for optional LLM tracing.    | No       |
 | `LANGFUSE_SECRET_KEY`   | Langfuse secret key for optional LLM tracing.    | No       |
 | `LANGFUSE_BASE_URL`     | Langfuse Cloud region or self-hosted base URL.   | No       |

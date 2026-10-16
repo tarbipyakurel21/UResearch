@@ -211,7 +211,7 @@ export function drawChart({ artifact, points, total, ranked, log, isXY, dark }: 
     ctx.textAlign = "left";
     ctx.fillText(`${yLabel}${log ? " · log scale" : ""}`, PAD, top + plotHeight + tickBand + 14);
     ctx.textAlign = "right";
-    ctx.fillText("Every value quoted from a cited paper · Open Paper", WIDTH - PAD, top + plotHeight + tickBand + 14);
+    ctx.fillText("Every value quoted from a cited paper · UResearch", WIDTH - PAD, top + plotHeight + tickBand + 14);
 
     return canvas;
 }

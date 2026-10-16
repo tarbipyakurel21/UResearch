@@ -27,7 +27,7 @@ class EmailAuthClient:
             bool: True if email was sent successfully, False otherwise
         """
         try:
-            subject = "Your Open Paper verification code"
+            subject = "Your UResearch verification code"
 
             html_template = load_email_template("verification_code.html")
             html_content = html_template.replace(

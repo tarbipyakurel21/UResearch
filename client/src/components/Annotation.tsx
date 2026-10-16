@@ -73,7 +73,7 @@ export default function Annotation({
                 <div className="flex items-center gap-2">
                     {avatarEl}
                     <span className="text-sm font-medium text-foreground">
-                        {isAI ? 'Open Paper' : user?.name || 'User'}
+                        {isAI ? 'UResearch' : user?.name || 'User'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                         {formatAnnotationDate(annotation.created_at)}
@@ -125,7 +125,7 @@ export default function Annotation({
             <div className="flex items-center gap-2">
                 {avatarEl}
                 <span className="text-sm font-medium text-foreground">
-                    {isAI ? 'Open Paper' : user?.name || 'User'}
+                    {isAI ? 'UResearch' : user?.name || 'User'}
                 </span>
                 <span className="text-xs text-muted-foreground">
                     {formatAnnotationDate(annotation.created_at)}

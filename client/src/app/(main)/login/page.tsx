@@ -220,7 +220,7 @@ function LoginContent() {
 	}
 
 	let headerContent = {
-		title: "Sign in to Open Paper",
+		title: "Sign in to UResearch",
 		description: "Connect with an account to access your papers, projects, and annotations."
 	};
 

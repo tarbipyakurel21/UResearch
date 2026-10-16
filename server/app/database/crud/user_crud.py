@@ -234,17 +234,17 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         try:
             send_email(
                 to_email=user_email,
-                subject="Your Open Paper account has been suspended",
+                subject="Your UResearch account has been suspended",
                 html_content=(
                     f"<p>{greeting}</p>"
-                    "<p>Your Open Paper account has been flagged and suspended "
+                    "<p>Your UResearch account has been flagged and suspended "
                     "for suspected misconduct of the platform.</p>"
                     "<p>If you believe this is an error, please contact us at "
                     '<a href="mailto:team@khoj.dev">team@khoj.dev</a> '
                     "and we will review your account.</p>"
-                    "<p>- The Open Paper Team</p>"
+                    "<p>- The UResearch Team</p>"
                 ),
-                from_name="Open Paper",
+                from_name="UResearch",
                 from_address="support@updates.openpaper.ai",
             )
             logger.info(f"Blocked notification email sent to {user_email}")

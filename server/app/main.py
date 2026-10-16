@@ -50,7 +50,7 @@ from fastapi.middleware.cors import CORSMiddleware
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Open Paper",
+    title="UResearch",
     description="A web application for uploading and annotating papers.",
     version="1.0.0",
 )

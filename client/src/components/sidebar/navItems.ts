@@ -1,4 +1,4 @@
-import { Compass, FileText, FolderKanban, Home, TelescopeIcon } from "lucide-react";
+import { BarChart3, Compass, FileText, FolderKanban, Home, TelescopeIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface SidebarNavItem {
@@ -39,5 +39,12 @@ export const navItems: SidebarNavItem[] = [
         url: "/discover",
         icon: Compass,
         requiresAuth: true,
+    },
+    {
+        title: "Visualize JSON",
+        url: "/visualize",
+        icon: BarChart3,
+        requiresAuth: true,
+        isNew: true,
     },
 ];

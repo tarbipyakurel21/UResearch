@@ -1,16 +1,16 @@
-# ![Open Paper](https://raw.githubusercontent.com/sabaimran/openpaper/refs/heads/master/client/src/app/openpaper.svg) Open Paper
+# ![UResearch](./client/public/uresearch-logo.png) UResearch
 
 **The fastest way to annotate and deeply understand research papers.**
 
-Open Paper is a workspace for reading research. Upload your papers, highlight and annotate them, take notes, and ask questions — with an AI assistant that grounds every answer in verifiable citations you can click to jump straight to the source.
+UResearch is a workspace for reading research. Upload your papers, highlight and annotate them, take notes, and ask questions — with an AI assistant that grounds every answer in verifiable citations you can click to jump straight to the source.
 
 Try it at **[openpaper.ai](https://openpaper.ai)**.
 
-![The Open Paper](./demo.gif)
+![The UResearch](./demo.gif)
 
-## Why Open Paper?
+## Why UResearch?
 
-Reading papers means constant context switching: looking up unfamiliar terms, chasing references, re-finding that one result you highlighted three papers ago. Open Paper brings all of that into one place, so you can stay in the flow of actually reading.
+Reading papers means constant context switching: looking up unfamiliar terms, chasing references, re-finding that one result you highlighted three papers ago. UResearch brings all of that into one place, so you can stay in the flow of actually reading.
 
 ## Features
 
@@ -50,7 +50,9 @@ Generate audio overviews of your papers for when reading isn't an option.
 
 ## Self-hosting
 
-Open Paper is open source, and you can run the full stack yourself. Fair warning: it's built primarily as a hosted service and isn't optimized for self-hosting, so expect some assembly (Postgres, S3-compatible storage, LLM API keys, background workers). The setup in [DEVELOPMENT.md](./DEVELOPMENT.md) is the best starting point.
+UResearch is open source, and you can run the full stack yourself. Fair warning: it's built primarily as a hosted service and isn't optimized for self-hosting, so expect some assembly (Postgres, S3-compatible storage, LLM API keys, background workers). The setup in [DEVELOPMENT.md](./DEVELOPMENT.md) is the best starting point.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the service map, configuration boundaries, deployment order, and the required relationships between the API and jobs environments.
 
 ## Contributing
 
@@ -65,4 +67,4 @@ Found a bug or have a feature idea? [Open an issue](https://github.com/khoj-ai/o
 
 ## License
 
-Open Paper is licensed under the [AGPL-3.0](./LICENSE).
+UResearch is licensed under the [AGPL-3.0](./LICENSE).

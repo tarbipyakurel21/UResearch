@@ -83,7 +83,7 @@ function CallbackContent() {
 			<div className="flex flex-col items-center justify-start min-h-[calc(100vh-64px)] p-4 md:pt-16">
 				<div className="container mx-auto flex flex-col items-center justify-start">
 					<div className="w-full md:max-w-1/2">
-						<h2 className="text-2xl font-bold text-center mb-4">Welcome to Open Paper</h2>
+						<h2 className="text-2xl font-bold text-center mb-4">Welcome to UResearch</h2>
 						<p className="text-muted-foreground mb-8 text-left">We want to make it 10x easier for you to read over large sets of documents, without sacrificing quality.</p>
 						<p className="text-muted-foreground mb-8 text-left">A couple of questions below will help us craft a better experience for you.</p>
 						<OPOnboarding />

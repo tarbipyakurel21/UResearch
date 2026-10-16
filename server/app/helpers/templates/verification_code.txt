@@ -1,6 +1,6 @@
-Open Paper - Verification Code
+UResearch - Verification Code
 
-Enter this verification code to sign in to your Open Paper account:
+Enter this verification code to sign in to your UResearch account:
 
 {{verification_code}}
 
