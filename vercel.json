@@ -1,33 +1,27 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
-    "backend": {
-      "root": "backend",
+    "server": {
+      "root": "server/",
       "framework": "fastapi",
       "entrypoint": "app.main:app"
     },
-    "frontend": {
-      "root": "frontend",
+    "client": {
+      "root": "client/",
       "framework": "nextjs"
     }
   },
   "rewrites": [
     {
-      "source": "/api/uploadthing",
-      "destination": {
-        "service": "frontend"
-      }
-    },
-    {
       "source": "/api/(.*)",
       "destination": {
-        "service": "backend"
+        "service": "server"
       }
     },
     {
       "source": "/(.*)",
       "destination": {
-        "service": "frontend"
+        "service": "client"
       }
     }
   ]
