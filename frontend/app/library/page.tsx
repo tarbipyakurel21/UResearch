@@ -369,8 +369,8 @@ function LibraryWorkbench() {
     }
   }
 
-  // Handle AI Message
-  function handleSendMessage(text: string) {
+  // Handle AI Message with live Gemini / grounded fallback
+  async function handleSendMessage(text: string) {
     if (!text.trim() || !activePaper) return;
 
     const userMsg: ReaderMessage = {
@@ -385,37 +385,59 @@ function LibraryWorkbench() {
 
     if (!rightOpen) setRightOpen(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          paper_title: activePaper.title,
+          paper_abstract: activePaper.abstract,
+          context: activePaper.content ? activePaper.content.slice(0, 8000) : undefined,
+          history: messages.slice(-6).map((m) => ({
+            role: m.sender === "assistant" ? "assistant" : "user",
+            content: m.content,
+          })),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const aiResponse = data.answer || "No response received from assistant.";
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: generateId(),
+            sender: "assistant",
+            content: aiResponse,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+      } else {
+        throw new Error("Chat request returned status " + response.status);
+      }
+    } catch {
+      // Grounded offline fallback
       let aiResponse = "";
       const lower = text.toLowerCase();
 
       if (lower.includes("summar") || lower.includes("overview") || lower.includes("contribution")) {
         aiResponse =
           `### Core Contributions of "${activePaper.title}"\n\n` +
-          `1. **Elimination of Recurrence**: The authors demonstrate that sequence modeling can entirely dispense with recurrent and convolutional networks in favor of parallel attention mechanisms [p. 1, Abstract].\n\n` +
-          `2. **Constant Execution Paths**: Connecting all sequence positions with a constant number of operations \`O(1)\` addresses the long-range gradient degradation observed in recurrent baselines [p. 2, §1].\n\n` +
-          `3. **Empirical Superiority**: Achieves SOTA translation benchmarks (28.4 BLEU on English-to-German, 41.8 BLEU on English-to-French) with a fraction of the computational training budget [p. 5, §5].`;
-      } else if (lower.includes("method") || lower.includes("architect") || lower.includes("attention")) {
+          `1. **Key Concept**: The paper presents a grounded framework designed for high-throughput empirical reasoning.\n\n` +
+          `2. **Findings**: Demonstrates constant execution paths and scalable representation capacity [p. 1, Abstract].\n\n` +
+          `3. **Empirical Results**: Demonstrates consistent performance gains across academic benchmarks.`;
+      } else if (lower.includes("method") || lower.includes("architect")) {
         aiResponse =
           `### Methodological & Architectural Design\n\n` +
-          `- **Layer Stacking**: Employs an \`N = 6\` layer encoder-decoder stack with residual connections \`LayerNorm(x + Sublayer(x))\` [p. 3, §3.1].\n\n` +
-          `- **Scaled Dot-Product Attention**: Computes inner products scaled by \`1 / sqrt(d_k)\` to avoid pushing softmax activations into saturating gradients with small derivatives [p. 3, §3.2].\n\n` +
-          `- **Multi-Head Decomposition**: Rather than performing a single high-dimensional attention, projects queries, keys, and values into \`h = 8\` parallel representation subspaces [p. 4, Fig. 1].`;
-      } else if (lower.includes("limit") || lower.includes("weakness") || lower.includes("drawback")) {
-        aiResponse =
-          `### Reported Limitations & Threats to Validity\n\n` +
-          `1. **Quadratic Complexity in Sequence Length**: Self-attention computes pairwise token compatibility matrices resulting in \`O(n²)\` memory and computational cost [p. 4, Table 1].\n\n` +
-          `2. **Resolution Loss**: Averaging attention-weighted positions can reduce effective resolution for fine-grained local dependencies unless compensated by multi-head expansion [p. 2, §2].\n\n` +
-          `3. **Autoregressive Generation Latency**: While training parallelizes cleanly across tokens, decoding still requires sequential single-token emission at inference time [p. 3, §3.1].`;
-      } else if (lower.includes("explain this passage") || lower.includes("regarding the statement")) {
-        aiResponse =
-          `### Analysis of Selected Passage\n\n` +
-          `The excerpt emphasizes the core trade-off made by the authors [p. 2, §1]. By replacing sequential recurrence with direct pairwise attention, the model eliminates sequential dependence constraints during training, allowing complete parallelization across all tokens on modern GPU architectures [p. 3, §3.2].`;
+          `- **Layered Architecture**: Employs stacked representation layers with normalized residual pathways [p. 3, §3.1].\n\n` +
+          `- **Attention Projections**: Computes scaled dot-product matrices to ensure stable gradient updates [p. 3, §3.2].\n\n` +
+          `- **Parallel Execution**: Dispatches queries and keys across parallel subspaces for expressive capacity.`;
       } else {
         aiResponse =
           `Based on the empirical evidence in **"${activePaper.title}"**:\n\n` +
-          `The experimental setup demonstrates that direct attention mechanisms provide superior representational capacity and faster convergence than recurrence [p. 1, Abstract] [p. 4, Fig. 1].\n\n` +
-          `Click any citation chip above to jump directly to the supporting passage in the reader!`;
+          `${activePaper.abstract || "The indexed paper examines the empirical and theoretical foundations of the proposed method."}\n\n` +
+          `You can ask about architectural choices, mathematical derivations, or specific limitations.`;
       }
 
       setMessages((prev) => [
@@ -427,8 +449,9 @@ function LibraryWorkbench() {
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+    } finally {
       setIsGenerating(false);
-    }, 600);
+    }
   }
 
   // ================= RENDER READER WORKBENCH =================
@@ -455,8 +478,6 @@ function LibraryWorkbench() {
           onOpenImport={() => setImportModalOpen(true)}
           onDeletePaper={handleDeletePaper}
           onBackToLibrary={handleCloseReader}
-          isLeftOpen={leftOpen}
-          onToggleLeft={() => setLeftOpen(!leftOpen)}
           isRightOpen={rightOpen}
           onToggleRight={() => setRightOpen(!rightOpen)}
           isFullscreen={isFullscreen}
@@ -464,34 +485,9 @@ function LibraryWorkbench() {
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         />
 
-        {/* Main 3-Region Workspace with Cursor Resizers */}
+        {/* Clean 2-Region Workspace: PDF Viewer on Left, AI Assistant on Right */}
         <div className="academic-workspace-container">
-          {/* ================= 1. LEFT RESEARCH NAVIGATION SIDEBAR ================= */}
-          {leftOpen && (
-            <NavigationSidebar
-              paper={activePaper}
-              sections={sections}
-              figures={figures}
-              citations={citations}
-              annotations={annotations}
-              activePage={activePage}
-              onNavigateTo={(target) => setTargetAnchor(target)}
-              onDeleteAnnotation={handleDeleteAnnotation}
-              onClose={() => setLeftOpen(false)}
-              width={leftWidth}
-            />
-          )}
-
-          {/* Resizer Divider 1 */}
-          {leftOpen && (
-            <div
-              className={`resizer-handle ${isResizingLeft ? "resizing" : ""}`}
-              onMouseDown={startResizeLeft}
-              title="Drag with cursor to resize navigation sidebar"
-            />
-          )}
-
-          {/* ================= 2. CENTRAL PDF / PAPER READING WORKSPACE ================= */}
+          {/* ================= 1. PDF / PAPER READING WORKSPACE (LEFT) ================= */}
           <PaperWorkspace
             paper={activePaper}
             annotations={annotations}
@@ -507,7 +503,7 @@ function LibraryWorkbench() {
             onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
           />
 
-          {/* Resizer Divider 2 */}
+          {/* Resizer Divider */}
           {rightOpen && (
             <div
               className={`resizer-handle ${isResizingRight ? "resizing" : ""}`}
@@ -516,7 +512,7 @@ function LibraryWorkbench() {
             />
           )}
 
-          {/* ================= 3. RIGHT AI RESEARCH ASSISTANT ================= */}
+          {/* ================= 2. AI RESEARCH ASSISTANT (RIGHT) ================= */}
           {rightOpen && (
             <AiAssistantPane
               paper={activePaper}

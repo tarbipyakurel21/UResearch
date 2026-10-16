@@ -80,6 +80,32 @@ export function PaperWorkspace({
   const [noteComment, setNoteComment] = useState("");
   const [activeHighlightColor, setActiveHighlightColor] = useState<HighlightColor>("yellow");
 
+  // Direct PDF URL resolution (uploaded PDF, UploadThing URL, or arXiv PDF)
+  const pdfUrl = useMemo(() => {
+    if (!paper) return null;
+    if (paper.kind === "pdf" && paper.content) return paper.content;
+    if (paper.file_url) return paper.file_url;
+    if (paper.source_url?.includes("arxiv.org")) {
+      const match = paper.source_url.match(/\d{4}\.\d{4,5}/);
+      if (match) return `https://arxiv.org/pdf/${match[0]}.pdf`;
+    }
+    if (paper.doi?.includes("arXiv") || paper.doi?.includes("10.48550/arXiv.")) {
+      const match = paper.doi.match(/\d{4}\.\d{4,5}/);
+      if (match) return `https://arxiv.org/pdf/${match[0]}.pdf`;
+    }
+    return null;
+  }, [paper]);
+
+  const [isPdfMode, setIsPdfMode] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (paper?.kind === "pdf" || pdfUrl) {
+      setIsPdfMode(true);
+    } else {
+      setIsPdfMode(false);
+    }
+  }, [paper?.kind, pdfUrl]);
+
   // Parse markdown paper into paginated academic sheets
   const pages: ParsedPage[] = useMemo(() => {
     if (!paper || paper.kind === "pdf") return [];
@@ -520,30 +546,38 @@ export function PaperWorkspace({
         ref={containerRef}
         style={{
           flex: 1,
-          overflowY: "auto",
-          padding: "32px 20px 80px",
+          overflowY: isPdfMode && pdfUrl ? "hidden" : "auto",
+          padding: isPdfMode && pdfUrl ? 0 : "32px 20px 80px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           gap: 24,
           transformOrigin: "top center",
+          height: "calc(100% - 38px)",
+          width: "100%",
         }}
         onMouseUp={handleMouseUp}
       >
-        {paper.kind === "pdf" ? (
-          /* PDF Viewer Container */
+        {isPdfMode && pdfUrl ? (
+          /* Direct Full-Bleed PDF Viewer */
           <div
-            className="academic-page-sheet"
             style={{
-              width: fitWidth ? "100%" : `${Math.round(850 * (zoomLevel / 100))}px`,
-              maxWidth: "100%",
-              height: "calc(100vh - 120px)",
-              overflow: "hidden",
+              width: "100%",
+              height: "100%",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              background: "#2a2d30",
             }}
           >
             <iframe
-              src={paper.content}
-              style={{ width: "100%", height: "100%", border: 0 }}
+              src={pdfUrl}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: 0,
+                flex: 1,
+              }}
               title={paper.title}
             />
           </div>
@@ -851,52 +885,102 @@ export function PaperWorkspace({
           zIndex: 30,
         }}
       >
-        {/* Left: Page Navigator */}
+        {/* Left: Page Navigator (when in Text mode) or Status Indicator (when in PDF mode) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button
-            className="button ghost"
-            style={{ height: 26, width: 26, padding: 0 }}
-            disabled={activePage <= 1}
-            onClick={() => scrollToPage(Math.max(1, activePage - 1))}
-            title="Previous page"
-          >
-            <ChevronLeft size={14} />
-          </button>
+          {!isPdfMode ? (
+            <>
+              <button
+                className="button ghost"
+                style={{ height: 26, width: 26, padding: 0 }}
+                disabled={activePage <= 1}
+                onClick={() => scrollToPage(Math.max(1, activePage - 1))}
+                title="Previous page"
+              >
+                <ChevronLeft size={14} />
+              </button>
 
-          <span
-            style={{
-              fontSize: 11,
-              fontFamily: "var(--font-mono)",
-              fontWeight: 600,
-              minWidth: 70,
-              textAlign: "center",
-            }}
-          >
-            Page {activePage} / {totalPages}
-          </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: "var(--font-mono)",
+                  fontWeight: 600,
+                  minWidth: 70,
+                  textAlign: "center",
+                }}
+              >
+                Page {activePage} / {totalPages}
+              </span>
 
-          <button
-            className="button ghost"
-            style={{ height: 26, width: 26, padding: 0 }}
-            disabled={activePage >= totalPages}
-            onClick={() => scrollToPage(Math.min(totalPages, activePage + 1))}
-            title="Next page"
-          >
-            <ChevronRight size={14} />
-          </button>
+              <button
+                className="button ghost"
+                style={{ height: 26, width: 26, padding: 0 }}
+                disabled={activePage >= totalPages}
+                onClick={() => scrollToPage(Math.min(totalPages, activePage + 1))}
+                title="Next page"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </>
+          ) : (
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                color: "var(--muted-foreground)",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
+              Native PDF Reader Active
+            </span>
+          )}
         </div>
 
-        {/* Center: Search trigger & Quick info */}
+        {/* Center: PDF Mode toggle & Search */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            className={`button ghost ${searchOpen ? "primary" : ""}`}
-            style={{ height: 26, padding: "0 8px", fontSize: 11, gap: 5 }}
-            onClick={() => setSearchOpen(!searchOpen)}
-            title="Search text in paper"
-          >
-            <Search size={12} />
-            <span>Search</span>
-          </button>
+          {pdfUrl && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                background: "var(--secondary)",
+                padding: 2,
+                borderRadius: 6,
+              }}
+            >
+              <button
+                className={`button ghost ${isPdfMode ? "primary" : ""}`}
+                style={{ height: 24, padding: "0 9px", fontSize: 11, borderRadius: 4 }}
+                onClick={() => setIsPdfMode(true)}
+                title="View original PDF document"
+              >
+                📄 PDF
+              </button>
+              <button
+                className={`button ghost ${!isPdfMode ? "primary" : ""}`}
+                style={{ height: 24, padding: "0 9px", fontSize: 11, borderRadius: 4 }}
+                onClick={() => setIsPdfMode(false)}
+                title="View clean text reading sheets"
+              >
+                📝 Text
+              </button>
+            </div>
+          )}
+
+          {!isPdfMode && (
+            <button
+              className={`button ghost ${searchOpen ? "primary" : ""}`}
+              style={{ height: 26, padding: "0 8px", fontSize: 11, gap: 5 }}
+              onClick={() => setSearchOpen(!searchOpen)}
+              title="Search text in paper"
+            >
+              <Search size={12} />
+              <span>Search</span>
+            </button>
+          )}
         </div>
 
         {/* Right: Zoom & Layout toggles */}

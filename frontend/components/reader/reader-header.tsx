@@ -28,8 +28,6 @@ interface ReaderHeaderProps {
   onOpenImport: () => void;
   onDeletePaper?: (paperId: string) => void;
   onBackToLibrary?: () => void;
-  isLeftOpen?: boolean;
-  onToggleLeft?: () => void;
   isRightOpen: boolean;
   onToggleRight: () => void;
   isFullscreen?: boolean;
@@ -44,8 +42,6 @@ export function ReaderHeader({
   onOpenImport,
   onDeletePaper,
   onBackToLibrary,
-  isLeftOpen,
-  onToggleLeft,
   isRightOpen,
   onToggleRight,
   isFullscreen,
@@ -103,18 +99,6 @@ export function ReaderHeader({
             <ArrowLeft size={13} />
             <span style={{ fontWeight: 600 }}>Library</span>
           </Link>
-        )}
-
-        {/* Toggle Left Sidebar (only if handler provided) */}
-        {onToggleLeft && (
-          <button
-            className={`button ghost ${isLeftOpen ? "primary" : ""}`}
-            style={{ height: 28, width: 28, padding: 0, borderRadius: 4 }}
-            onClick={onToggleLeft}
-            title={isLeftOpen ? "Collapse navigation sidebar" : "Expand navigation sidebar"}
-          >
-            <PanelLeft size={14} />
-          </button>
         )}
 
         {/* Custom Paper Dropdown Popover */}

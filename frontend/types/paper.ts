@@ -20,6 +20,7 @@ export interface Paper {
   title: string;
   authors: string[];
   source_url?: string;
+  file_url?: string;
   kind: PaperKind;
   content: string;
   abstract?: string;
