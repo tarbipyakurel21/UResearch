@@ -1,59 +1,70 @@
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-.venv/
-.env
-.env.*
-!.env.example
-*.egg-info/
-.eggs/
-build/
-dist/
-.pytest_cache/
+server/.venv/
+server/__pycache__
+server/.env
+server/uploads
 .mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# macOS
-.DS_Store
-
-# Editors and IDEs
-.idea/
+__pycache__/
 .vscode/
-*.swp
-*.swo
 
-# Logs and temporary files
-*.log
-tmp/
-temp/
+# dependencies
+client/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Node.js / React / Next.js
-node_modules/
-.next/
-out/
-*.tsbuildinfo
+# testing
+client/coverage
+
+# next.js
+client/.next/
+client/out/
+client/public/blog-latest.json
+
+# production
+client/build
+docker-compose.yml
+ecs-task-definitions/
+
+# misc
+.DS_Store
+*.pem
+celerybeat-schedule.db
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-.npm/
-.yarn/
-.pnp/
-.pnp.*
+.pnpm-debug.log*
 
-# Local environment files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# benchmarking
+benchmark_manifest.json
+eval_dataset.json
+eval*.json
+comparison_all.csv
+server/evals/results/charts/*.png
+neurips.md
+
+# paper outputs
+*.tex
+build_*tex.sh
+*.sty
+
+# containerized dev stack (docker-compose.dev.yml): docker/seed/fixture.dump is
+# deliberately COMMITTED. It is manufactured from the PDFs in
+# server/evals/seed_data/ by `scripts/dev build-fixture`, holds no real user
+# data, and has to be present for a fresh checkout to come up with usable data.

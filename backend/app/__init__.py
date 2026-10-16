@@ -1,1 +1,0 @@
-"""UResearch backend application."""
