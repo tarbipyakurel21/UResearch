@@ -15,10 +15,11 @@ class Base(DeclarativeBase):
 # connections for that environment, so each function instance must not retain
 # its own application-side pool.
 engine = create_engine(
-    get_settings().database_url,
+    get_settings().normalized_database_url,
     poolclass=NullPool,
     pool_pre_ping=True,
 )
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

@@ -15,8 +15,17 @@ export interface PaperAnnotation {
 
 export type ReadingStatus = "unread" | "reading" | "completed" | "starred";
 
+/**
+ * Paper Entity
+ * Grounded in two strict sources of truth:
+ * 1. Objective data extracted from the PDF (title, authors, DOI, abstract, file size, pages)
+ * 2. Subjective data provided by the user (collections, annotations, tags, reading state, notes)
+ * Zero assumptions: No synthetic placeholders, fake authors, or mock tags.
+ */
 export interface Paper {
   id: string;
+
+  // --- Objective Extracted / Physical Properties ---
   title: string;
   authors: string[];
   source_url?: string;
@@ -24,13 +33,22 @@ export interface Paper {
   kind: PaperKind;
   content: string;
   abstract?: string;
+  doi?: string;
   year?: number | string;
   venue?: string;
-  doi?: string;
+  page_count?: number;
+  file_size?: number;
+
+  // --- Subjective User Input ---
   tags?: string[];
   reading_status?: ReadingStatus;
   progress?: number;
+  bookmarked_pages?: number[];
   annotations?: PaperAnnotation[];
+  notes?: string;
+  project_id?: string;
+
+  // --- System Timestamps ---
   created_at: string;
   updated_at: string;
 }
@@ -66,7 +84,7 @@ export interface ProjectExtractionCell {
 export interface ResearchProject {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   paperIds: string[];
   columns: ProjectExtractionColumn[];
   extractions: ProjectExtractionCell[];

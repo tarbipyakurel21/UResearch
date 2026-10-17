@@ -12,10 +12,18 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     gemini_api_key: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
+
+    @property
+    def normalized_database_url(self) -> str:
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
 
     @property
     def allowed_origins(self) -> list[str]:
+
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property

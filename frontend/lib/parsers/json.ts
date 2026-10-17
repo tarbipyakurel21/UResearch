@@ -5,21 +5,33 @@ import { generateId } from "@/lib/utils/ids";
  * Parse a JSON string into dataset records.
  *
  * Supports:
- *   A. Array:            [{...}, ...]
- *   B. Wrapped object:   { "results": [...] }
- *   C. Metadata+results: { "metadata": {...}, "results": [...] }
- *   D. Any object with one array key
+ *   A. Array of objects:        [{...}, ...]
+ *   B. Wrapped object:          { "results": [...] } / { "data": [...] }
+ *   C. Dictionary of objects:   { "id1": {...}, "id2": {...} }
+ *   D. Single object:           { "col1": val1, "col2": val2 }
+ *   E. Array of primitives:     [1, 2, 3] -> [{ index: 0, value: 1 }, ...]
+ *   F. Automatic fallback to JSONL if formatted line-by-line.
  */
 export function parseJSON(
   raw: string,
   datasetId: string
 ): ParseResult {
   const errors: ParseError[] = [];
+  const clean = raw.trim().replace(/^\uFEFF/, "");
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(clean);
   } catch (e) {
+    // If standard JSON.parse fails, attempt JSONL parse as a seamless fallback
+    try {
+      const jsonlResult = parseJSONL(clean, datasetId);
+      if (jsonlResult.records.length > 0) {
+        return jsonlResult;
+      }
+    } catch {
+      // ignore
+    }
     throw new Error(`Invalid JSON: ${(e as Error).message}`);
   }
 
@@ -27,31 +39,41 @@ export function parseJSON(
   let metadata: Record<string, unknown> | undefined;
 
   if (Array.isArray(parsed)) {
-    // Case A
+    // Case A & E: Array
     records = normalizeArray(parsed, errors);
   } else if (parsed !== null && typeof parsed === "object") {
     const obj = parsed as Record<string, unknown>;
-    // Case B/C — find the array field
     const arrayKeys = Object.keys(obj).filter((k) => Array.isArray(obj[k]));
     const nonArrayKeys = Object.keys(obj).filter((k) => !Array.isArray(obj[k]));
 
     if (arrayKeys.length === 0) {
-      // Single object — treat as one record
-      records = [obj];
+      // Check if this object is a key-value dictionary where values are objects (e.g. { "item_1": { "name": "A" } })
+      const entries = Object.entries(obj);
+      const isDictOfObjects =
+        entries.length > 0 &&
+        entries.every(
+          ([, val]) => val !== null && typeof val === "object" && !Array.isArray(val)
+        );
+
+      if (isDictOfObjects) {
+        records = entries.map(([key, val]) => ({
+          _id: key,
+          ...(val as Record<string, unknown>),
+        }));
+      } else {
+        // Single object — treat as one record
+        records = [obj];
+      }
     } else {
       // Prefer common keys; otherwise take the first array key
-      const preferred = ["results", "data", "records", "items", "rows", "entries"];
+      const preferred = ["results", "data", "records", "items", "rows", "entries", "papers", "samples"];
       const key = preferred.find((k) => arrayKeys.includes(k)) ?? arrayKeys[0];
       records = normalizeArray(obj[key] as unknown[], errors);
 
       if (nonArrayKeys.length > 0) {
         metadata = {};
         for (const k of nonArrayKeys) {
-          if (typeof obj[k] !== "object" || obj[k] === null || Array.isArray(obj[k])) {
-            metadata[k] = obj[k];
-          } else {
-            metadata[k] = obj[k];
-          }
+          metadata[k] = obj[k];
         }
       }
     }
@@ -81,10 +103,21 @@ export function parseJSONL(
   raw: string,
   datasetId: string
 ): ParseResult {
+  const clean = raw.trim().replace(/^\uFEFF/, "");
+
+  // If user pasted a JSON array into JSONL parser, gracefully fallback
+  if (clean.startsWith("[") && clean.endsWith("]")) {
+    try {
+      return parseJSON(clean, datasetId);
+    } catch {
+      // continue to JSONL parse
+    }
+  }
+
   const errors: ParseError[] = [];
   const records: DatasetRecord[] = [];
 
-  const lines = raw.split(/\r?\n/);
+  const lines = clean.split(/\r?\n/);
   let rowIndex = 0;
 
   for (let i = 0; i < lines.length; i++) {
@@ -123,11 +156,15 @@ function normalizeArray(
     const item = arr[i];
     if (item !== null && typeof item === "object" && !Array.isArray(item)) {
       results.push(item as Record<string, unknown>);
+    } else if (item !== null && typeof item === "object" && Array.isArray(item)) {
+      results.push({ index: i, items: item });
+    } else if (item !== undefined && item !== null) {
+      results.push({ index: i, value: item });
     } else {
       errors.push({
         index: i,
         raw: JSON.stringify(item),
-        message: `Expected object at index ${i}, got ${typeof item}`,
+        message: `Expected non-null value at index ${i}`,
       });
     }
   }

@@ -6,51 +6,35 @@ import {
   ArrowLeft,
   BookOpen,
   ChevronDown,
-  ExternalLink,
-  FilePlus,
   Maximize2,
   Minimize2,
-  Moon,
-  PanelLeft,
-  PanelRight,
-  Search,
-  Sparkles,
-  Sun,
   Trash2,
 } from "lucide-react";
-import { useTheme } from "../theme-provider";
 import type { Paper } from "@/types/paper";
+import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 
 interface ReaderHeaderProps {
   papers: Paper[];
   activePaper: Paper | null;
   onSelectPaper: (paper: Paper) => void;
-  onOpenImport: () => void;
   onDeletePaper?: (paperId: string) => void;
   onBackToLibrary?: () => void;
-  isRightOpen: boolean;
-  onToggleRight: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  onOpenCommandPalette?: () => void;
 }
 
 export function ReaderHeader({
   papers,
   activePaper,
   onSelectPaper,
-  onOpenImport,
   onDeletePaper,
   onBackToLibrary,
-  isRightOpen,
-  onToggleRight,
   isFullscreen,
   onToggleFullscreen,
-  onOpenCommandPalette,
 }: ReaderHeaderProps) {
-  const { resolvedTheme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
+  const [paperToDelete, setPaperToDelete] = useState<Paper | null>(null);
 
   const filteredPapers = papers.filter((p) => {
     if (!filterQuery.trim()) return true;
@@ -76,8 +60,29 @@ export function ReaderHeader({
         zIndex: 50,
       }}
     >
-      {/* Left: Brand Monogram & Paper Selector Dropdown */}
+      {/* Left: Brand Logo & Paper Selector Dropdown */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        {/* Logo and Brand Link */}
+        <Link
+          href="/library"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            textDecoration: "none",
+            color: "inherit",
+            marginRight: 4,
+          }}
+          title="UResearch Home"
+        >
+          <img
+            src="/uresearch-logo.png"
+            alt="UResearch"
+            style={{ width: 22, height: 22, borderRadius: 5, objectFit: "cover" }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em" }}>UResearch</span>
+        </Link>
+
         {/* Back to Library Button */}
         {onBackToLibrary ? (
           <button
@@ -231,9 +236,7 @@ export function ReaderHeader({
                             style={{ padding: 4, height: 22, width: 22, flexShrink: 0 }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Delete "${paper.title}"?`)) {
-                                onDeletePaper(paper.id);
-                              }
+                              setPaperToDelete(paper);
                             }}
                             title="Delete paper"
                           >
@@ -247,7 +250,7 @@ export function ReaderHeader({
 
                 <div
                   style={{
-                    padding: "8px 10px",
+                    padding: "8px 12px",
                     borderTop: "1px solid var(--border)",
                     background: "var(--secondary)",
                     display: "flex",
@@ -256,34 +259,15 @@ export function ReaderHeader({
                   }}
                 >
                   <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                    {papers.length} paper{papers.length === 1 ? "" : "s"} stored
+                    {papers.length} {papers.length === 1 ? "paper" : "papers"} in library
                   </span>
-                  <button
-                    className="button primary"
-                    style={{ height: 24, padding: "0 8px", fontSize: 11 }}
-                    onClick={() => {
-                      setDropdownOpen(false);
-                      onOpenImport();
-                    }}
-                  >
-                    <FilePlus size={12} /> Add Paper
-                  </button>
                 </div>
               </div>
             </>
           )}
         </div>
 
-        {/* Quick import button */}
-        <button
-          className="button ghost"
-          style={{ height: 28, padding: "0 8px", fontSize: 11, gap: 4 }}
-          onClick={onOpenImport}
-          title="Import PDF, Markdown, or arXiv paper"
-        >
-          <FilePlus size={13} />
-          <span>Import</span>
-        </button>
+        {/* Clean Paper Selector Popover only */}
       </div>
 
       {/* Center: Clean Paper Title & Venue */}
@@ -294,7 +278,7 @@ export function ReaderHeader({
             alignItems: "center",
             gap: 8,
             minWidth: 0,
-            maxWidth: "40%",
+            maxWidth: "50%",
           }}
         >
           <span
@@ -343,42 +327,8 @@ export function ReaderHeader({
         </div>
       )}
 
-      {/* Right Controls */}
+      {/* Right Controls: Minimal & Clean */}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {/* Global Search Button */}
-        {onOpenCommandPalette && (
-          <button
-            className="button ghost"
-            style={{ height: 28, padding: "0 8px", fontSize: 11, gap: 5 }}
-            onClick={onOpenCommandPalette}
-            title="Search papers & commands (⌘K)"
-          >
-            <Search size={13} />
-            <kbd
-              style={{
-                fontSize: 9,
-                fontFamily: "var(--font-mono)",
-                padding: "1px 4px",
-                borderRadius: 3,
-                background: "var(--secondary)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              ⌘K
-            </kbd>
-          </button>
-        )}
-
-        {/* Toggle Theme */}
-        <button
-          className="button ghost"
-          style={{ height: 28, width: 28, padding: 0, borderRadius: 4 }}
-          onClick={toggleTheme}
-          title={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
-        >
-          {resolvedTheme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-        </button>
-
         {/* Fullscreen toggle */}
         {onToggleFullscreen && (
           <button
@@ -390,19 +340,20 @@ export function ReaderHeader({
             {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
         )}
-
-        {/* Toggle Right AI Assistant */}
-        <button
-          className={`button ghost ${isRightOpen ? "primary" : ""}`}
-          style={{ height: 28, padding: "0 9px", fontSize: 11, gap: 5, borderRadius: 4 }}
-          onClick={onToggleRight}
-          title={isRightOpen ? "Collapse AI Assistant" : "Expand AI Assistant"}
-        >
-          <Sparkles size={13} style={{ color: isRightOpen ? "inherit" : "var(--scholar-accent)" }} />
-          <span>AI Assistant</span>
-          <PanelRight size={13} style={{ opacity: 0.7 }} />
-        </button>
       </div>
+
+      <DeleteConfirmModal
+        open={Boolean(paperToDelete)}
+        title="Delete Paper"
+        itemName={paperToDelete?.title}
+        onConfirm={() => {
+          if (paperToDelete && onDeletePaper) {
+            onDeletePaper(paperToDelete.id);
+            setPaperToDelete(null);
+          }
+        }}
+        onCancel={() => setPaperToDelete(null)}
+      />
     </header>
   );
 }

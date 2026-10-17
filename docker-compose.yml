@@ -1,8 +1,10 @@
 services:
   api:
     build: ./backend
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch
+      DATABASE_URL: ${LOCAL_DATABASE_URL:-postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: http://localhost:3000
     ports:
@@ -15,8 +17,10 @@ services:
   worker:
     build: ./backend
     command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch
+      DATABASE_URL: ${LOCAL_DATABASE_URL:-postgresql+psycopg://uresearch:uresearch@postgres:5432/uresearch}
       REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis

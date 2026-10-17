@@ -11,7 +11,7 @@ import type { LLMFieldMapping } from "@/types/llm";
 import type { EEGFieldMapping } from "@/types/eeg";
 import type { Paper } from "@/types/paper";
 
-export const IDB_VERSION = 2;
+export const IDB_VERSION = 3;
 export const IDB_NAME = "researchbench";
 
 interface AppSettings {
@@ -86,6 +86,10 @@ export interface RBSchema extends DBSchema {
   papers: {
     key: string;
     value: Paper;
+  };
+  pdf_blobs: {
+    key: string;
+    value: Blob;
   };
 }
 
@@ -162,6 +166,9 @@ export async function getDB(): Promise<IDBPDatabase<RBSchema>> {
       }
       if (!db.objectStoreNames.contains("papers")) {
         db.createObjectStore("papers", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("pdf_blobs")) {
+        db.createObjectStore("pdf_blobs");
       }
     },
   });

@@ -7,6 +7,9 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Copy,
   Download,
   Eye,
   FileCode,
@@ -15,7 +18,10 @@ import {
   FileUp,
   Filter,
   FlaskConical,
+  Folder,
+  FolderOpen,
   LineChart as LineChartIcon,
+  Loader2,
   PieChart as PieChartIcon,
   Plus,
   RefreshCw,
@@ -33,9 +39,6 @@ import { deleteRecords, loadRecords, saveRecords } from "@/lib/persistence/recor
 import { filterRecords } from "@/lib/filters/apply";
 import { getNumericValue, getStringValue } from "@/lib/statistics/aggregate";
 import { generateId } from "@/lib/utils/ids";
-import { SAMPLE_CSV_DATA, SAMPLE_JSONL_DATA } from "@/lib/sample-datasets";
-import sampleLlmSafety from "@/examples/llm-safety.json";
-import sampleGenericExperiment from "@/examples/generic-experiment.json";
 import type { Dataset, DatasetRecord } from "@/types/dataset";
 import type { AggregationType, ChartType, VisualizationConfig } from "@/types/visualization";
 
@@ -138,26 +141,66 @@ export function VisualizationWorkspace() {
   const [topN, setTopN] = useState<number>(15);
   const [colorThemeIndex, setColorThemeIndex] = useState<number>(0);
 
-  // Interaction / Drilldown state
+  // Interaction / View state
+  const [showVisuals, setShowVisuals] = useState<boolean>(false);
+  const [uploadsOpen, setUploadsOpen] = useState<boolean>(false);
+  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<Point | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<Point | null>(null);
   const [recordSearch, setRecordSearch] = useState<string>("");
-  const [viewTab, setViewTab] = useState<"visualize" | "data">("visualize");
-  const [inspectRecord, setInspectRecord] = useState<DatasetRecord | null>(null);
+  const uploadsMenuRef = useRef<HTMLDivElement>(null);
+
+  const isJsonlActive =
+    dataset?.format === "jsonl" ||
+    detectedFormat === "jsonl" ||
+    (showDirectJson && pasteFormat === "jsonl");
+  const isJsonActive =
+    (dataset?.format === "json" && !isJsonlActive) ||
+    (detectedFormat === "json" && !isJsonlActive) ||
+    (showDirectJson && pasteFormat === "json");
 
   const activeTheme = COLOR_THEMES[colorThemeIndex] ?? COLOR_THEMES[0];
 
-  // Load existing datasets on mount
+  // Close uploads dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (uploadsMenuRef.current && !uploadsMenuRef.current.contains(event.target as Node)) {
+        setUploadsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Row expansion toggle helper
+  const toggleRowExpanded = (id: string) => {
+    setExpandedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Copy text helper with temporary feedback
+  const handleCopyText = (text: string, fieldKey: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedField(fieldKey);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Load existing datasets on mount (do NOT auto-select dataset by default)
   useEffect(() => {
     async function init() {
       setLoading(true);
       const items = await listDatasets();
       setDatasets(items);
-      if (items.length > 0) {
-        setActiveDatasetId(items[0].id);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
     }
     void init();
   }, []);
@@ -280,6 +323,7 @@ export function VisualizationWorkspace() {
 
       setDatasets((prev) => [newDataset, ...prev.filter((d) => d.id !== newDataset.id)]);
       setActiveDatasetId(newDataset.id);
+      setDetectedFormat(parsed.format);
       setUploadModalOpen(false);
       setShowPasteArea(false);
       setPasteData("");
@@ -304,6 +348,7 @@ export function VisualizationWorkspace() {
       setIngestError(`Unsupported file format. Please upload .json, .jsonl, .csv, or .tsv files.`);
       return;
     }
+    setDetectedFormat(format);
 
     const reader = new FileReader();
     reader.onerror = () => setIngestError("Failed to read file from disk.");
@@ -434,63 +479,346 @@ export function VisualizationWorkspace() {
   }
 
   return (
-    <div className="content" style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 60 }}>
-      {/* Minimal Action Toolbar */}
+    <div className="content" style={{ maxWidth: 1280, margin: "0 auto", padding: "20px 20px 60px" }}>
+      {/* Hidden File Input — Always mounted in DOM for instant file chooser */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        hidden
+        accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt"
+        onChange={(e) => {
+          handleFileSelected(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+
+      {/* Global Ingestion Status Notifications */}
+      {statusMessage && (
+        <div
+          className="notice"
+          style={{
+            marginBottom: 16,
+            borderColor: "var(--success)",
+            background: "rgba(16, 185, 129, 0.1)",
+            color: "var(--success)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Check size={16} /> {statusMessage}
+        </div>
+      )}
+
+      {ingestError && (
+        <div
+          className="notice"
+          style={{
+            marginBottom: 16,
+            borderColor: "var(--danger)",
+            background: "rgba(239, 68, 68, 0.1)",
+            color: "var(--danger)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <AlertCircle size={16} /> {ingestError}
+        </div>
+      )}
+
+      {ingesting && (
+        <div
+          className="notice"
+          style={{
+            marginBottom: 16,
+            borderColor: "var(--scholar-accent)",
+            background: "var(--scholar-accent-soft)",
+            color: "var(--scholar-accent)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Loader2 size={16} className="animate-spin" /> Ingesting and analyzing structured data ({ingestProgress}%)...
+        </div>
+      )}
+
+      {/* Top Visualizer Launchers: JSON Visualizer, JSONL Visualizer, Upload File First */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-          paddingBottom: 14,
-          borderBottom: "1px solid var(--border)",
-          flexWrap: "wrap",
           gap: 12,
+          marginBottom: 24,
+          flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Visualization</h1>
-        </div>
-
-        {/* The user-specified buttons: upload a file, json visualization, jsonl visualization */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button
-            className="button primary"
-            style={{ height: 32, fontSize: 12 }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload size={13} /> Upload a File
-          </button>
-          <button
-            className="button"
-            style={{ height: 32, fontSize: 12 }}
-            onClick={() => {
-              setShowDirectJson((prev) => !prev);
-              if (!pasteData.trim()) {
-                setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
-              }
-            }}
-          >
-            <FileCode size={13} style={{ color: "#2563eb" }} /> JSON Visualization
-          </button>
-          <button
-            className="button"
-            style={{ height: 32, fontSize: 12 }}
-            onClick={() => void handleIngest("training-runs.jsonl", SAMPLE_JSONL_DATA, "jsonl")}
-          >
-            <FileText size={13} style={{ color: "#8b5cf6" }} /> JSONL Visualization
-          </button>
-          {dataset && (
-            <button
-              className="button ghost"
-              style={{ height: 32, fontSize: 12 }}
-              onClick={handleExportSVG}
-              title="Download SVG Chart"
+        <button
+          type="button"
+          className="button"
+          style={{
+            height: 38,
+            padding: "0 16px",
+            fontSize: 13,
+            fontWeight: 650,
+            gap: 8,
+            borderRadius: 8,
+            border: isJsonActive ? "2px solid var(--scholar-accent)" : "1px solid var(--border)",
+            background: isJsonActive ? "var(--scholar-accent-soft)" : "var(--card)",
+            color: isJsonActive ? "var(--scholar-accent)" : "var(--foreground)",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+          }}
+          onClick={() => {
+            setShowDirectJson(true);
+            setPasteFormat("json");
+          }}
+        >
+          <FileCode size={15} />
+          <span>JSON Visualizer</span>
+          {isJsonActive && !isJsonlActive && (
+            <span
+              className="badge primary"
+              style={{ fontSize: 9, padding: "1px 5px", textTransform: "uppercase", marginLeft: 4 }}
             >
-              <Download size={13} /> Export Chart
-            </button>
+              Active
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className="button"
+          style={{
+            height: 38,
+            padding: "0 16px",
+            fontSize: 13,
+            fontWeight: isJsonlActive ? 750 : 650,
+            gap: 8,
+            borderRadius: 8,
+            border: isJsonlActive ? "2px solid var(--scholar-accent)" : "1px solid var(--border)",
+            background: isJsonlActive ? "var(--scholar-accent-soft)" : "var(--card)",
+            color: isJsonlActive ? "var(--scholar-accent)" : "var(--foreground)",
+            boxShadow: isJsonlActive ? "0 0 0 1px var(--scholar-accent), 0 2px 8px rgba(37,99,235,0.15)" : "none",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+          }}
+          onClick={() => {
+            setShowDirectJson(true);
+            setPasteFormat("jsonl");
+          }}
+        >
+          <FileText size={15} />
+          <span>JSONL Visualizer</span>
+          {isJsonlActive && (
+            <span
+              className="badge primary"
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                padding: "2px 6px",
+                textTransform: "uppercase",
+                marginLeft: 4,
+                letterSpacing: "0.5px",
+                background: "var(--scholar-accent)",
+                color: "#ffffff",
+              }}
+            >
+              Detected
+            </span>
+          )}
+        </button>
+
+        {/* Uploads Dropdown Button */}
+        <div ref={uploadsMenuRef} style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="button"
+            style={{
+              height: 38,
+              padding: "0 16px",
+              fontSize: 13,
+              fontWeight: 650,
+              gap: 8,
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: uploadsOpen ? "var(--secondary)" : "var(--card)",
+              color: "var(--foreground)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onClick={() => setUploadsOpen((prev) => !prev)}
+          >
+            <Folder size={15} style={{ color: "var(--scholar-accent)" }} />
+            <span>Uploads ({datasets.length})</span>
+            <ChevronDown
+              size={14}
+              style={{
+                transform: uploadsOpen ? "rotate(180deg)" : "none",
+                transition: "transform 0.2s",
+              }}
+            />
+          </button>
+
+          {uploadsOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 6px)",
+                left: 0,
+                width: 320,
+                maxHeight: 380,
+                overflowY: "auto",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+                padding: "8px 0",
+                zIndex: 60,
+              }}
+            >
+              <div
+                style={{
+                  padding: "6px 14px 8px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: "var(--muted-foreground)",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>Earlier Uploads</span>
+                <span>{datasets.length} files</span>
+              </div>
+
+              {datasets.length === 0 ? (
+                <div
+                  style={{
+                    padding: "20px 14px",
+                    textAlign: "center",
+                    fontSize: 12,
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  No earlier uploads yet.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {datasets.map((d) => {
+                    const isSelected = d.id === activeDatasetId;
+                    return (
+                      <div
+                        key={d.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          gap: 8,
+                          background: isSelected ? "var(--scholar-accent-soft)" : "transparent",
+                          cursor: "pointer",
+                          transition: "background 0.12s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.background = "var(--secondary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.background = "transparent";
+                        }}
+                        onClick={() => {
+                          setActiveDatasetId(d.id);
+                          setUploadsOpen(false);
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? 700 : 500,
+                              color: isSelected ? "var(--scholar-accent)" : "var(--foreground)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {d.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "var(--muted-foreground)",
+                              display: "flex",
+                              gap: 6,
+                              alignItems: "center",
+                            }}
+                          >
+                            <span
+                              className="badge"
+                              style={{ fontSize: 9, padding: "1px 4px", textTransform: "uppercase" }}
+                            >
+                              {d.format}
+                            </span>
+                            <span>{d.record_count.toLocaleString()} rows</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="button ghost"
+                          style={{
+                            height: 24,
+                            width: 24,
+                            padding: 0,
+                            color: "var(--danger)",
+                            opacity: 0.7,
+                          }}
+                          title="Delete upload"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteDataset(d.id);
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
+
+        <button
+          type="button"
+          className="button primary"
+          style={{
+            height: 38,
+            padding: "0 16px",
+            fontSize: 13,
+            fontWeight: 650,
+            gap: 8,
+            borderRadius: 8,
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+          }}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload size={15} />
+          <span>Upload File</span>
+        </button>
       </div>
 
       {/* ================= DIRECT JSON PASTING & PARSER ================= */}
@@ -519,19 +847,9 @@ export function VisualizationWorkspace() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 650, fontSize: 13.5 }}>
               <FileCode size={15} style={{ color: "#2563eb" }} />
-              <span>Direct JSON Editor & Parser</span>
+              <span>Direct {pasteFormat.toUpperCase()} Editor & Parser</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <button
-                className="button ghost"
-                style={{ height: 26, fontSize: 11, padding: "0 8px" }}
-                onClick={() => {
-                  setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
-                  setPasteJsonError(null);
-                }}
-              >
-                Sample JSON
-              </button>
               <button
                 className="button ghost"
                 style={{ height: 26, fontSize: 11, padding: "0 8px" }}
@@ -679,6 +997,11 @@ export function VisualizationWorkspace() {
               value={activeDatasetId}
               onChange={(e) => setActiveDatasetId(e.target.value)}
             >
+              {!activeDatasetId && (
+                <option value="" disabled>
+                  -- Select an uploaded dataset --
+                </option>
+              )}
               {datasets.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name} ({d.record_count.toLocaleString()} rows)
@@ -699,29 +1022,24 @@ export function VisualizationWorkspace() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
-              style={{
-                display: "flex",
-                background: "var(--secondary)",
-                borderRadius: 6,
-                padding: 2,
-              }}
+            {dataset && showVisuals && (
+              <button
+                className="button ghost"
+                style={{ height: 28, fontSize: 11.5, padding: "0 8px", gap: 5 }}
+                onClick={handleExportSVG}
+                title="Download SVG Chart"
+              >
+                <Download size={12} /> Export Chart
+              </button>
+            )}
+
+            <button
+              className="button primary"
+              style={{ height: 28, fontSize: 11.5, padding: "0 10px", gap: 5 }}
+              onClick={() => fileInputRef.current?.click()}
             >
-              <button
-                className={`button ghost ${viewTab === "visualize" ? "primary" : ""}`}
-                style={{ height: 26, fontSize: 11, padding: "0 10px" }}
-                onClick={() => setViewTab("visualize")}
-              >
-                <BarChart3 size={12} /> Chart View
-              </button>
-              <button
-                className={`button ghost ${viewTab === "data" ? "primary" : ""}`}
-                style={{ height: 26, fontSize: 11, padding: "0 10px" }}
-                onClick={() => setViewTab("data")}
-              >
-                <Table size={12} /> Records Table ({displayedRecords.length})
-              </button>
-            </div>
+              <Upload size={12} /> Upload File
+            </button>
 
             {dataset && (
               <button
@@ -737,114 +1055,157 @@ export function VisualizationWorkspace() {
         </div>
       )}
 
-      {/* ================= NO DATASETS EMPTY STATE ================= */}
-      {datasets.length === 0 && !loading && !showDirectJson && (
+      {/* ================= NO DATASETS / UNSELECTED STATE ================= */}
+      {!dataset && !loading && !showDirectJson && (
         <div
           className="panel"
           style={{
-            padding: 32,
+            padding: 40,
             textAlign: "center",
-            maxWidth: 620,
-            margin: "24px auto",
+            maxWidth: 540,
+            margin: "40px auto",
+            borderRadius: 12,
           }}
         >
-          <div
-            className={`dropzone ${isDragging ? "drag" : ""}`}
-            style={{ padding: "32px 20px", marginBottom: 20, cursor: "pointer" }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              handleFileSelected(e.dataTransfer.files?.[0]);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FileUp size={32} style={{ color: "var(--scholar-accent)", margin: "0 auto 10px" }} />
-            <strong style={{ fontSize: 13.5 }}>Drop file here or click to browse</strong>
-            <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "var(--muted-foreground)" }}>
-              .json, .jsonl, .csv, .tsv
-            </p>
-          </div>
+          {datasets.length === 0 ? (
+            <>
+              <div
+                className={`dropzone ${isDragging ? "drag" : ""}`}
+                style={{ padding: "36px 20px", marginBottom: 20, cursor: "pointer" }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  handleFileSelected(e.dataTransfer.files?.[0]);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileUp size={36} style={{ color: "var(--scholar-accent)", margin: "0 auto 12px", opacity: 0.8 }} />
+                <strong style={{ fontSize: 14 }}>Drop dataset here or click to browse</strong>
+                <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--muted-foreground)" }}>
+                  Supports JSON, JSONL, CSV, and TSV
+                </p>
+              </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <button
-              className="button primary"
-              style={{ fontSize: 12.5 }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload size={13} /> Upload a File
-            </button>
-            <button
-              className="button"
-              style={{ fontSize: 12.5 }}
-              onClick={() => {
-                setShowDirectJson(true);
-                setPasteData(JSON.stringify(sampleLlmSafety, null, 2));
-              }}
-            >
-              <FileCode size={13} style={{ color: "#2563eb" }} /> JSON Visualization
-            </button>
-            <button
-              className="button"
-              style={{ fontSize: 12.5 }}
-              onClick={() => void handleIngest("training-runs.jsonl", SAMPLE_JSONL_DATA, "jsonl")}
-            >
-              <FileText size={13} style={{ color: "#8b5cf6" }} /> JSONL Visualization
-            </button>
-          </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  className="button primary"
+                  style={{ fontSize: 12.5, height: 32 }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={13} /> Upload File
+                </button>
+                <button
+                  className="button"
+                  style={{ fontSize: 12.5, height: 32 }}
+                  onClick={() => {
+                    setShowDirectJson(true);
+                    setPasteFormat("json");
+                  }}
+                >
+                  <FileCode size={13} style={{ color: "var(--scholar-accent)" }} /> Paste JSON / JSONL
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <FolderOpen size={40} style={{ color: "var(--scholar-accent)", margin: "0 auto 14px", opacity: 0.85 }} />
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>Select a Dataset to View</h3>
+              <p style={{ fontSize: 13, color: "var(--muted-foreground)", margin: "0 0 20px", lineHeight: 1.5 }}>
+                Pick an earlier upload from the <strong>Uploads</strong> button above, or upload a new JSON / JSONL file to view records and create visuals.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  className="button primary"
+                  style={{ fontSize: 12.5, height: 34, gap: 6 }}
+                  onClick={() => setUploadsOpen(true)}
+                >
+                  <Folder size={14} /> Earlier Uploads ({datasets.length})
+                </button>
+                <button
+                  className="button"
+                  style={{ fontSize: 12.5, height: 34, gap: 6 }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={14} /> Upload New File
+                </button>
+                <button
+                  className="button ghost"
+                  style={{ fontSize: 12.5, height: 34, gap: 6 }}
+                  onClick={() => {
+                    setShowDirectJson(true);
+                    setPasteFormat("json");
+                  }}
+                >
+                  <FileCode size={14} /> Paste JSON
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {/* ================= MAIN VISUALIZATION WORKSPACE ================= */}
       {dataset && (
         <>
-          {/* KPI Summary Cards */}
+          {/* Total Records Stat Bar & Create Visuals Button */}
           <div
-            className="grid cols-4"
             style={{
-              gap: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               marginBottom: 18,
+              gap: 12,
+              flexWrap: "wrap",
             }}
           >
-            <div className="panel stat" style={{ padding: "12px 16px" }}>
-              <div className="stat-label">Total Records</div>
-              <div className="stat-value" style={{ fontSize: 22 }}>
-                {kpiStats.totalRecords.toLocaleString()}
+            <div
+              className="panel"
+              style={{
+                padding: "8px 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 12,
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 650,
+                  color: "var(--muted-foreground)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Total Records
               </div>
-              <div className="hint">In active dataset</div>
+              <div style={{ fontSize: 20, fontWeight: 750, color: "var(--foreground)" }}>
+                {records.length.toLocaleString()}
+              </div>
             </div>
 
-            <div className="panel stat" style={{ padding: "12px 16px" }}>
-              <div className="stat-label">
-                {aggregation.toUpperCase()} of {yField || "records"}
-              </div>
-              <div className="stat-value" style={{ fontSize: 22, color: activeTheme.primary }}>
-                {aggregation === "count"
-                  ? kpiStats.totalRecords.toLocaleString()
-                  : kpiStats.metricVal.toFixed(3)}
-              </div>
-              <div className="hint">{yField ? `Aggregated over ${xField}` : "Overall count"}</div>
-            </div>
-
-            <div className="panel stat" style={{ padding: "12px 16px" }}>
-              <div className="stat-label">Peak Value (Max)</div>
-              <div className="stat-value" style={{ fontSize: 22, color: "#10b981" }}>
-                {kpiStats.maxVal.toFixed(kpiStats.maxVal % 1 === 0 ? 0 : 3)}
-              </div>
-              <div className="hint">Highest data point</div>
-            </div>
-
-            <div className="panel stat" style={{ padding: "12px 16px" }}>
-              <div className="stat-label">Displayed Categories</div>
-              <div className="stat-value" style={{ fontSize: 22, color: "#8b5cf6" }}>
-                {kpiStats.groupCount}
-              </div>
-              <div className="hint">Groups on X-axis</div>
-            </div>
+            <button
+              type="button"
+              className={`button ${showVisuals ? "secondary" : "primary"}`}
+              style={{
+                height: 38,
+                padding: "0 18px",
+                fontSize: 13,
+                fontWeight: 650,
+                gap: 8,
+                borderRadius: 8,
+              }}
+              onClick={() => setShowVisuals((prev) => !prev)}
+            >
+              <BarChart3 size={16} />
+              <span>{showVisuals ? "Hide Visuals" : "Create Visuals"}</span>
+              {showVisuals ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
           </div>
 
           {/* Drilldown Active Filter Alert */}
@@ -877,14 +1238,15 @@ export function VisualizationWorkspace() {
             </div>
           )}
 
-          {/* Layout: Chart & Controls */}
-          {viewTab === "visualize" ? (
+          {/* Layout: Chart & Controls (Hidden by default, shown when showVisuals is true) */}
+          {showVisuals && (
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 310px",
                 gap: 18,
                 alignItems: "start",
+                marginBottom: 20,
               }}
             >
               {/* Chart Stage Panel */}
@@ -1158,10 +1520,10 @@ export function VisualizationWorkspace() {
                 </div>
               </aside>
             </div>
-          ) : null}
+          )}
 
-          {/* ================= RECORDS TABLE & DRILLDOWN ================= */}
-          <section className="panel" style={{ marginTop: 20 }}>
+          {/* ================= RECORDS TABLE & DRILLDOWN (Default View) ================= */}
+          <section className="panel" style={{ marginTop: showVisuals ? 0 : 4 }}>
             <div
               className="panel-head"
               style={{
@@ -1222,58 +1584,243 @@ export function VisualizationWorkspace() {
               </div>
             </div>
 
-            <div className="table-wrap" style={{ maxHeight: 380, overflowY: "auto" }}>
+            <div className="table-wrap" style={{ maxHeight: 600, overflowY: "auto" }}>
               <table style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
+                    <th style={{ width: 36, textAlign: "center" }}></th>
                     <th style={{ width: 44 }}>#</th>
                     {dataset.column_schemas.slice(0, 7).map((col) => (
                       <th key={col.key}>{col.key}</th>
                     ))}
-                    <th style={{ width: 60 }}>Inspect</th>
+                    <th style={{ width: 85, textAlign: "right" }}>Full Text</th>
                   </tr>
                 </thead>
                 <tbody>
                   {displayedRecords.slice(0, 100).map((record, index) => {
+                    const isExpanded = expandedRowIds.has(record._rb_id);
                     const raw = record._original as Record<string, unknown>;
+                    const colSpan = dataset.column_schemas.slice(0, 7).length + 3;
+
                     return (
-                      <tr key={record._rb_id}>
-                        <td style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
-                          {index + 1}
-                        </td>
-                        {dataset.column_schemas.slice(0, 7).map((col) => {
-                          const val = raw[col.raw_key] ?? raw[col.key];
-                          const str =
-                            val !== null && val !== undefined
-                              ? typeof val === "object"
-                                ? JSON.stringify(val)
-                                : String(val)
-                              : "—";
-                          return (
-                            <td
-                              key={col.key}
-                              style={{
-                                maxWidth: 180,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                      <React.Fragment key={record._rb_id}>
+                        <tr
+                          style={{
+                            cursor: "pointer",
+                            background: isExpanded ? "var(--secondary)" : "transparent",
+                            transition: "background 0.12s ease",
+                          }}
+                          onClick={() => toggleRowExpanded(record._rb_id)}
+                        >
+                          <td style={{ textAlign: "center", padding: "6px 8px" }}>
+                            <button
+                              type="button"
+                              className="button ghost"
+                              style={{ height: 22, width: 22, padding: 0 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRowExpanded(record._rb_id);
+                              }}
+                              title={isExpanded ? "Collapse full text" : "Expand full text"}
+                            >
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                          </td>
+                          <td style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
+                            {index + 1}
+                          </td>
+                          {dataset.column_schemas.slice(0, 7).map((col) => {
+                            const val = raw[col.raw_key] ?? raw[col.key];
+                            const str =
+                              val !== null && val !== undefined
+                                ? typeof val === "object"
+                                  ? JSON.stringify(val)
+                                  : String(val)
+                                : "—";
+                            return (
+                              <td
+                                key={col.key}
+                                style={{
+                                  maxWidth: 180,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {str}
+                              </td>
+                            );
+                          })}
+                          <td style={{ textAlign: "right" }}>
+                            <button
+                              type="button"
+                              className={`button ${isExpanded ? "secondary" : "ghost"}`}
+                              style={{ height: 22, fontSize: 11, padding: "0 8px", gap: 4 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRowExpanded(record._rb_id);
                               }}
                             >
-                              {str}
+                              <span>{isExpanded ? "Collapse" : "View"}</span>
+                            </button>
+                          </td>
+                        </tr>
+
+                        {/* Inline Dropdown / Accordion Row Drawer */}
+                        {isExpanded && (
+                          <tr style={{ background: "var(--card)" }}>
+                            <td colSpan={colSpan} style={{ padding: 0 }}>
+                              <div
+                                style={{
+                                  padding: "16px 20px 20px",
+                                  borderTop: "1px solid var(--border)",
+                                  borderBottom: "2px solid var(--border)",
+                                  background: "var(--secondary)",
+                                }}
+                              >
+                                {/* Header bar inside expanded dropdown */}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    marginBottom: 14,
+                                    paddingBottom: 10,
+                                    borderBottom: "1px solid var(--border)",
+                                    flexWrap: "wrap",
+                                    gap: 10,
+                                  }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <span
+                                      className="badge primary"
+                                      style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px" }}
+                                    >
+                                      Record #{index + 1}
+                                    </span>
+                                    <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                                      Full content view ({Object.keys(raw).length} fields)
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <button
+                                      type="button"
+                                      className="button ghost"
+                                      style={{ height: 26, fontSize: 11.5, padding: "0 10px", gap: 5 }}
+                                      onClick={() =>
+                                        handleCopyText(JSON.stringify(raw, null, 2), `json-${record._rb_id}`)
+                                      }
+                                    >
+                                      {copiedField === `json-${record._rb_id}` ? (
+                                        <>
+                                          <Check size={12} style={{ color: "var(--success)" }} /> Copied JSON
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy size={12} /> Copy JSON
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      className="button ghost"
+                                      style={{ height: 26, fontSize: 11.5, padding: "0 10px", gap: 4 }}
+                                      onClick={() => toggleRowExpanded(record._rb_id)}
+                                    >
+                                      <ChevronUp size={13} />
+                                      <span>Collapse</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Field Cards */}
+                                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                  {Object.entries(raw).map(([key, value]) => {
+                                    const strVal =
+                                      value !== null && value !== undefined
+                                        ? typeof value === "object"
+                                          ? JSON.stringify(value, null, 2)
+                                          : String(value)
+                                        : "—";
+                                    const fieldCopyKey = `${record._rb_id}-${key}`;
+                                    const isLongText = strVal.length > 80 || strVal.includes("\n");
+
+                                    return (
+                                      <div
+                                        key={key}
+                                        style={{
+                                          background: "var(--card)",
+                                          border: "1px solid var(--border)",
+                                          borderRadius: 8,
+                                          padding: "10px 14px",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            marginBottom: 6,
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontSize: 11.5,
+                                              fontWeight: 700,
+                                              fontFamily: "var(--font-mono)",
+                                              color: "var(--scholar-accent)",
+                                            }}
+                                          >
+                                            {key}
+                                          </span>
+
+                                          <button
+                                            type="button"
+                                            className="button ghost"
+                                            style={{ height: 22, padding: "0 6px", fontSize: 10.5, gap: 4 }}
+                                            onClick={() => handleCopyText(strVal, fieldCopyKey)}
+                                            title="Copy field text"
+                                          >
+                                            {copiedField === fieldCopyKey ? (
+                                              <>
+                                                <Check size={11} style={{ color: "var(--success)" }} />
+                                                <span>Copied</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Copy size={11} />
+                                                <span>Copy</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            fontSize: 12.5,
+                                            lineHeight: 1.6,
+                                            whiteSpace: "pre-wrap",
+                                            wordBreak: "break-word",
+                                            color: "var(--foreground)",
+                                            fontFamily:
+                                              typeof value === "object" ? "var(--font-mono)" : "inherit",
+                                            maxHeight: isLongText ? 320 : "none",
+                                            overflowY: isLongText ? "auto" : "visible",
+                                          }}
+                                        >
+                                          {strVal}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             </td>
-                          );
-                        })}
-                        <td>
-                          <button
-                            className="button ghost"
-                            style={{ height: 22, width: 22, padding: 0 }}
-                            onClick={() => setInspectRecord(record)}
-                            title="Inspect full JSON"
-                          >
-                            <Eye size={12} />
-                          </button>
-                        </td>
-                      </tr>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -1350,15 +1897,6 @@ export function VisualizationWorkspace() {
               Select a local file from your machine or paste raw structured data. Processing is
               performed 100% locally in your browser.
             </p>
-
-            {/* Hidden File Input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt"
-              onChange={(e) => handleFileSelected(e.target.files?.[0])}
-            />
 
             {!showPasteArea ? (
               <>
@@ -1444,35 +1982,6 @@ export function VisualizationWorkspace() {
                   >
                     <FileText size={13} /> Or Paste Raw Text
                   </button>
-
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      className="button"
-                      style={{ fontSize: 11.5 }}
-                      onClick={() =>
-                        void handleIngest("llm-safety.json", JSON.stringify(sampleLlmSafety))
-                      }
-                      disabled={ingesting}
-                    >
-                      Sample JSON
-                    </button>
-                    <button
-                      className="button"
-                      style={{ fontSize: 11.5 }}
-                      onClick={() => void handleIngest("benchmarks.csv", SAMPLE_CSV_DATA)}
-                      disabled={ingesting}
-                    >
-                      Sample CSV
-                    </button>
-                    <button
-                      className="button"
-                      style={{ fontSize: 11.5 }}
-                      onClick={() => void handleIngest("runs.jsonl", SAMPLE_JSONL_DATA)}
-                      disabled={ingesting}
-                    >
-                      Sample JSONL
-                    </button>
-                  </div>
                 </div>
               </>
             ) : (
@@ -1554,71 +2063,6 @@ export function VisualizationWorkspace() {
         </div>
       )}
 
-      {/* ================= RECORD INSPECT MODAL ================= */}
-      {inspectRecord && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            backdropFilter: "blur(2px)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 100,
-            padding: 20,
-          }}
-          onClick={() => setInspectRecord(null)}
-        >
-          <div
-            className="panel"
-            style={{
-              width: "100%",
-              maxWidth: 640,
-              padding: 20,
-              boxShadow: "0 12px 36px rgba(0,0,0,0.25)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 12,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Eye size={16} style={{ color: activeTheme.primary }} />
-                <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
-                  Record Inspection (#{inspectRecord._rb_index + 1})
-                </h3>
-              </div>
-              <button
-                className="button ghost"
-                style={{ height: 26, width: 26, padding: 0 }}
-                onClick={() => setInspectRecord(null)}
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <pre
-              style={{
-                background: "var(--secondary)",
-                padding: 14,
-                borderRadius: 6,
-                fontSize: 11.5,
-                fontFamily: "var(--font-mono)",
-                maxHeight: 400,
-                overflowY: "auto",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {JSON.stringify(inspectRecord._original, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

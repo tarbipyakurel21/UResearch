@@ -10,15 +10,11 @@ import {
   Folder,
   FolderPlus,
   Globe,
-  Moon,
-  PanelLeft,
   Plus,
   Search,
-  Sun,
   Upload,
   X,
 } from "lucide-react";
-import { useTheme } from "@/components/theme-provider";
 import { CommandPalette } from "@/components/command-palette";
 import { PaperImportModal } from "@/components/paper-import-modal";
 import { listPapers } from "@/lib/persistence/papers";
@@ -27,7 +23,6 @@ import type { Paper, ResearchProject } from "@/types/paper";
 
 export default function HomePage() {
   const router = useRouter();
-  const { resolvedTheme, toggleTheme } = useTheme();
 
   const [papers, setPapers] = useState<Paper[]>([]);
   const [projects, setProjects] = useState<ResearchProject[]>([]);
@@ -35,7 +30,6 @@ export default function HomePage() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -89,118 +83,20 @@ export default function HomePage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "var(--background)",
-        color: "var(--foreground)",
+        width: "100%",
         display: "flex",
         flexDirection: "column",
+        minHeight: "calc(100vh - 54px)",
       }}
     >
-      {/* Top Bar */}
-      <header
+      <div
         style={{
-          height: 54,
-          padding: "0 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: "1px solid var(--border)",
+          width: "100%",
+          maxWidth: 1040,
+          margin: "0 auto",
+          padding: "48px 24px 64px",
         }}
       >
-        {/* Left: Sidebar Toggle + Open Paper */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={() => setDrawerOpen(true)}
-            className="button ghost"
-            style={{ width: 32, height: 32, padding: 0 }}
-            title="Toggle Menu"
-          >
-            <PanelLeft size={16} />
-          </button>
-
-          <Link
-            href="/"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              textDecoration: "none",
-              color: "inherit",
-              fontWeight: 650,
-              fontSize: 14.5,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 4,
-                background: "rgba(37, 99, 235, 0.12)",
-                color: "#2563eb",
-                display: "grid",
-                placeItems: "center",
-              }}
-            >
-              <FileText size={13} />
-            </div>
-            <span>Open Paper</span>
-          </Link>
-        </div>
-
-        {/* Center: Search papers, projects, or ask a question... [ ⌘ K ] */}
-        <div style={{ flex: 1, maxWidth: 540, margin: "0 20px" }}>
-          <div
-            onClick={() => setCommandPaletteOpen(true)}
-            style={{
-              width: "100%",
-              height: 38,
-              borderRadius: 9999,
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0 14px",
-              cursor: "pointer",
-              transition: "border-color 0.15s ease",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--muted-foreground)", fontSize: 13 }}>
-              <Search size={15} />
-              <span>Search papers, projects, or ask a question...</span>
-            </div>
-            <kbd
-              style={{
-                fontSize: 11,
-                fontFamily: "var(--font-mono)",
-                background: "var(--secondary)",
-                padding: "2px 6px",
-                borderRadius: 4,
-                color: "var(--muted-foreground)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              ⌘ K
-            </kbd>
-          </div>
-        </div>
-
-        {/* Right: Theme Toggle */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={toggleTheme}
-            className="button ghost"
-            style={{ width: 32, height: 32, padding: 0 }}
-            title="Toggle theme"
-          >
-            {resolvedTheme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main style={{ flex: 1, maxWidth: 1040, width: "100%", margin: "0 auto", padding: "48px 24px 64px" }}>
         {/* The ONLY Three Buttons from Screenshot */}
         <div
           style={{
@@ -645,7 +541,7 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Footer from Screenshot */}
       <footer
@@ -672,88 +568,6 @@ export default function HomePage() {
           </a>
         </div>
       </footer>
-
-      {/* Slide-over Drawer for navigation */}
-      {drawerOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            display: "flex",
-          }}
-        >
-          <div
-            onClick={() => setDrawerOpen(false)}
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(0,0,0,0.3)",
-              backdropFilter: "blur(2px)",
-            }}
-          />
-          <div
-            style={{
-              position: "relative",
-              width: 260,
-              height: "100%",
-              background: "var(--card)",
-              borderRight: "1px solid var(--border)",
-              padding: "20px 16px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              zIndex: 10,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontWeight: 700, fontSize: 15 }}>Navigation</span>
-              <button
-                className="button ghost"
-                style={{ width: 28, height: 28, padding: 0 }}
-                onClick={() => setDrawerOpen(false)}
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            <nav style={{ display: "grid", gap: 6 }}>
-              <Link
-                href="/library"
-                className="button ghost"
-                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
-                onClick={() => setDrawerOpen(false)}
-              >
-                <FileText size={15} /> Library ({papers.length})
-              </Link>
-              <Link
-                href="/visualize"
-                className="button ghost"
-                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
-                onClick={() => setDrawerOpen(false)}
-              >
-                <Upload size={15} /> Visualization
-              </Link>
-              <Link
-                href="/projects"
-                className="button ghost"
-                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
-                onClick={() => setDrawerOpen(false)}
-              >
-                <Folder size={15} /> Projects ({projects.length})
-              </Link>
-              <Link
-                href="/discover"
-                className="button ghost"
-                style={{ justifyContent: "flex-start", gap: 10, fontSize: 13 }}
-                onClick={() => setDrawerOpen(false)}
-              >
-                <Globe size={15} /> Discover
-              </Link>
-            </nav>
-          </div>
-        </div>
-      )}
 
       {/* New Project Modal */}
       {newProjectModalOpen && (

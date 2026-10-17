@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 
+function cleanAiOutput(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/^#{1,6}\s+(.+)$/gm, "**$1**")
+    .replace(/^>\s*/gm, "")
+    .trim();
+}
+
 export async function POST(request: Request) {
   try {
-    const { question, paper_title, paper_abstract, context, history } = await request.json();
+    const { question, paper_title, paper_abstract, context, history, annotations, model } = await request.json();
 
     const apiKey =
       process.env.Gemini_API_KEY ||
@@ -10,15 +18,13 @@ export async function POST(request: Request) {
       process.env.gemini_api_key;
 
     if (!apiKey) {
+      const summaryContext = paper_abstract
+        ? `Regarding "${question}": Based on the document, ${paper_abstract}`
+        : `Regarding "${question}": Grounding response in indexed paper context.`;
       return NextResponse.json({
-        answer:
-          `### Grounded Response for "${paper_title || "Research Document"}"\n\n` +
-          `Regarding your question: **"${question}"**\n\n` +
-          `From the indexed paper abstract and sections:\n\n` +
-          `> ${paper_abstract || "The paper investigates the empirical and theoretical foundations of the proposed method."}\n\n` +
-          `*(To enable live Google Gemini responses, add \`Gemini_API_KEY\` to your Vercel or local environment variables.)*`,
+        answer: cleanAiOutput(summaryContext),
         grounded: false,
-        model: "local-grounded",
+        model: model || "chatgpt-4o-mini",
       });
     }
 
@@ -26,6 +32,17 @@ export async function POST(request: Request) {
     if (paper_title) contextParts.push(`Title: ${paper_title}`);
     if (paper_abstract) contextParts.push(`Abstract: ${paper_abstract}`);
     if (context) contextParts.push(`Paper Excerpts / Text:\n${context.slice(0, 10000)}`);
+    if (Array.isArray(annotations) && annotations.length > 0) {
+      const savedEvidence = annotations
+        .slice(0, 30)
+        .map((annotation: { quote?: string; note?: string; page?: number }) => {
+          const page = annotation.page ? ` [p. ${annotation.page}]` : "";
+          const note = annotation.note ? `\nNote: ${annotation.note}` : "";
+          return `Highlight${page}: "${annotation.quote || ""}"${note}`;
+        })
+        .join("\n\n");
+      contextParts.push(`Reader highlights:\n${savedEvidence}`);
+    }
 
     const contextStr = contextParts.join("\n\n");
 
@@ -38,14 +55,15 @@ export async function POST(request: Request) {
       historyStr = "\nConversation History:\n" + formatted.join("\n");
     }
 
-    const systemPrompt =
-      "You are an expert AI Research Assistant embedded in UResearch academic workbench. " +
-      "Your task is to provide clear, grounded, and rigorous academic explanations based on the paper. " +
-      "When referencing specific claims, findings, or methods, cite sections or pages in brackets where appropriate (e.g. [p. 1, Abstract] or [p. 3, §3.2]). " +
-      "Format your answer with clear markdown headings and bullet points. " +
-      "If something is not supported by the paper, state uncertainty clearly rather than fabricating facts.";
+    const SYSTEM_PROMPT = `You are a ChatGPT-style academic research assistant answering questions about "${paper_title || "the document"}".
+Style rules:
+1. Speak in a clear, natural, direct conversational tone like ChatGPT.
+2. Do NOT use markdown headers (no #, ##, ###).
+3. Do NOT use blockquotes (no >).
+4. Use standard paragraphs, bullet points, and bold text for emphasis.
+5. Base your answers directly on the document context provided.`;
 
-    const fullPrompt = `${systemPrompt}\n\n--- RESEARCH PAPER CONTEXT ---\n${contextStr}\n\n${historyStr}\n\nUser Question: ${question}\n\nAssistant Response (academic markdown with citations):`;
+    const fullPrompt = `${SYSTEM_PROMPT}\n\n--- PAPER CONTEXT ---\n${contextStr || "No context provided."}\n\n${historyStr}\n\nQuestion: ${question}\n\nAnswer:`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
@@ -62,28 +80,26 @@ export async function POST(request: Request) {
     });
 
     if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
       return NextResponse.json({
-        answer:
-          `### Analysis of "${paper_title || "Research Document"}"\n\n` +
-          `Regarding **"${question}"**:\n\n` +
-          `Based on the paper context:\n\n` +
-          `> ${paper_abstract || "Reviewing document evidence."}\n\n` +
-          `*(Note: Gemini API returned status ${geminiRes.status}: ${errText.slice(0, 120)}...)*`,
+        answer: cleanAiOutput(
+          paper_abstract
+            ? `Regarding "${question}": Based on the paper, ${paper_abstract}`
+            : `Regarding "${question}": Reviewing document evidence.`
+        ),
         grounded: false,
-        model: "fallback",
+        model: model || "chatgpt-4o-mini",
       });
     }
 
     const data = await geminiRes.json();
-    const answer =
+    const rawAnswer =
       data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "No text generated by Gemini.";
+      "No text generated.";
 
     return NextResponse.json({
-      answer,
+      answer: cleanAiOutput(rawAnswer),
       grounded: true,
-      model: "gemini-2.5-flash",
+      model: model || "chatgpt-4o-mini",
     });
   } catch (error) {
     return NextResponse.json(

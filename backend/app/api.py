@@ -48,6 +48,24 @@ def list_projects(db: Session = Depends(get_db)) -> list[Project]:
     return list(db.scalars(select(Project).order_by(Project.updated_at.desc())))
 
 
+@router.get("/projects/{project_id}", response_model=ProjectRead)
+def get_project(project_id: UUID, db: Session = Depends(get_db)) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.delete("/projects/{project_id}")
+def delete_project(project_id: UUID, db: Session = Depends(get_db)) -> dict[str, str]:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(project)
+    db.commit()
+    return {"status": "deleted", "id": str(project_id)}
+
+
 def register_upload(
     payload: UploadThingPaperCreate, db: Session, project_id: UUID | None = None
 ) -> Paper:
@@ -75,10 +93,36 @@ def register_upload(
     return paper
 
 
+@router.get("/papers", response_model=list[PaperRead])
+def list_all_papers(project_id: UUID | None = None, db: Session = Depends(get_db)) -> list[Paper]:
+    stmt = select(Paper)
+    if project_id is not None:
+        stmt = stmt.where(Paper.project_id == project_id)
+    return list(db.scalars(stmt.order_by(Paper.updated_at.desc())))
+
+
 @router.post("/papers", response_model=PaperRead)
 def register_library_paper(payload: UploadThingPaperCreate, db: Session = Depends(get_db)) -> Paper:
     """Save an UploadThing PDF in the user's unassigned library."""
     return register_upload(payload, db)
+
+
+@router.get("/papers/{paper_id}", response_model=PaperRead)
+def get_paper(paper_id: UUID, db: Session = Depends(get_db)) -> Paper:
+    paper = db.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    return paper
+
+
+@router.delete("/papers/{paper_id}")
+def delete_paper(paper_id: UUID, db: Session = Depends(get_db)) -> dict[str, str]:
+    paper = db.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    db.delete(paper)
+    db.commit()
+    return {"status": "deleted", "id": str(paper_id)}
 
 
 @router.post("/projects/{project_id}/papers", response_model=PaperRead)
@@ -95,6 +139,19 @@ def list_papers(project_id: UUID, db: Session = Depends(get_db)) -> list[Paper]:
     return list(db.scalars(select(Paper).where(Paper.project_id == project_id).order_by(Paper.updated_at.desc())))
 
 
+@router.get("/papers/{paper_id}/annotations", response_model=list[AnnotationRead])
+def list_annotations(paper_id: UUID, db: Session = Depends(get_db)) -> list[Annotation]:
+    if db.get(Paper, paper_id) is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    return list(
+        db.scalars(
+            select(Annotation)
+            .where(Annotation.paper_id == paper_id)
+            .order_by(Annotation.created_at.asc())
+        )
+    )
+
+
 @router.post("/papers/{paper_id}/annotations", response_model=AnnotationRead)
 def create_annotation(
     paper_id: UUID, payload: AnnotationCreate, db: Session = Depends(get_db)
@@ -106,6 +163,7 @@ def create_annotation(
     db.commit()
     db.refresh(annotation)
     return annotation
+
 
 
 @router.post("/chat/grounded-prompt", response_model=GroundedPrompt)
@@ -183,11 +241,13 @@ def chat_with_paper(payload: GeminiChatRequest) -> GeminiChatResponse:
         history_str = "\nConversation History:\n" + "\n".join(formatted)
 
     system_instructions = (
-        "You are an expert AI Research Assistant embedded in UResearch academic workbench. "
-        "Your task is to provide clear, grounded, and rigorous academic explanations based on the paper. "
-        "When referencing specific claims, findings, or methods, cite sections or pages in brackets where appropriate (e.g. [p. 1, Abstract] or [p. 3, §3.2]). "
-        "Format your answer with clear markdown headings and bullet points. "
-        "If something is not supported by the paper, state uncertainty clearly rather than fabricating facts."
+        "You are UResearch Assistant, an expert AI Research Scholar and Scientific Literature Discovery Partner. "
+        "Your mission is to help researchers interrogate scientific papers, explore foundational methodologies, evaluate empirical results, and synthesize literature with rigorous academic discipline.\n\n"
+        "Guidelines:\n"
+        "1. Academic Precision: Direct, structured, and intellectually honest explanations without conversational fluff or pleasantries.\n"
+        "2. Grounded Evidence: Cite specific sections, authors, or pages in brackets (e.g. [Vaswani et al., 2017], [p. 3, §3.2], [Abstract]). Distinguish paper evidence from broader scientific knowledge without hallucinating.\n"
+        "3. Mathematical Depth: Format equations in standard LaTeX math ($...$, $$...$$).\n"
+        "4. Structured Format: Organize with clear markdown headings (###) and bullet points."
     )
 
     full_prompt = (
@@ -204,8 +264,9 @@ def chat_with_paper(payload: GeminiChatRequest) -> GeminiChatResponse:
             return GeminiChatResponse(answer=answer, grounded=True, model="gemini-2.5-flash")
         except Exception as exc:
             logger.warning("Gemini API call failed: %s", exc)
+            header = f"### Analysis of \"{payload.paper_title}\"\n\n" if payload.paper_title else "### Analysis\n\n"
             answer = (
-                f"### Analysis of \"{payload.paper_title or 'Research Document'}\"\n\n"
+                f"{header}"
                 f"Regarding **\"{payload.question}\"**:\n\n"
                 f"Based on the paper context:\n\n"
                 f"> {payload.paper_abstract or 'Reviewing document evidence.'}\n\n"
@@ -214,11 +275,12 @@ def chat_with_paper(payload: GeminiChatRequest) -> GeminiChatResponse:
             return GeminiChatResponse(answer=answer, grounded=False, model="fallback")
     else:
         # Graceful grounded answer when API key is not configured yet
+        header = f"### Grounded Response for \"{payload.paper_title}\"\n\n" if payload.paper_title else "### Grounded Response\n\n"
         answer = (
-            f"### Grounded Response for \"{payload.paper_title or 'Research Document'}\"\n\n"
+            f"{header}"
             f"Regarding your inquiry: **\"{payload.question}\"**\n\n"
             f"From the indexed paper abstract and sections:\n\n"
-            f"> {payload.paper_abstract or 'The paper investigates architectural and empirical properties of the model.'}\n\n"
+            f"> {payload.paper_abstract or 'No indexed abstract available.'}\n\n"
             f"*(To enable live Google Gemini model generation, add `Gemini_API_KEY` to your environment variables.)*"
         )
         return GeminiChatResponse(answer=answer, grounded=False, model="local-grounded")

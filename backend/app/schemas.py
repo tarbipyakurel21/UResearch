@@ -22,10 +22,14 @@ class PaperRead(BaseModel):
     title: str
     authors: list[str]
     source_url: str | None
+    object_key: str | None = None
+    extracted_text: str | None = None
+    metadata_json: dict = Field(default_factory=dict)
     status: str
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class UploadThingPaperCreate(BaseModel):

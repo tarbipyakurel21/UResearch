@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Highlighter,
+  Loader2,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -17,6 +18,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { resolvePdfUrl } from "@/lib/persistence/pdf-blobs";
 import type { HighlightColor, Paper, PaperAnnotation } from "@/types/paper";
 import type {
   CitationTarget,
@@ -80,37 +82,59 @@ export function PaperWorkspace({
   const [noteComment, setNoteComment] = useState("");
   const [activeHighlightColor, setActiveHighlightColor] = useState<HighlightColor>("yellow");
 
-  // Direct PDF URL resolution (uploaded PDF, UploadThing URL, or arXiv PDF)
-  const pdfUrl = useMemo(() => {
-    if (!paper) return null;
-    if (paper.kind === "pdf" && paper.content) return paper.content;
-    if (paper.file_url) return paper.file_url;
-    if (paper.source_url?.includes("arxiv.org")) {
-      const match = paper.source_url.match(/\d{4}\.\d{4,5}/);
-      if (match) return `https://arxiv.org/pdf/${match[0]}.pdf`;
+  // Robust PDF URL resolution (supporting Blobs from IndexedDB, http URLs, and base64)
+  const [resolvedPdfUrl, setResolvedPdfUrl] = useState<string | null>(null);
+  const [resolvingPdf, setResolvingPdf] = useState<boolean>(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResolvingPdf(true);
+
+    async function load() {
+      if (!paper) {
+        setResolvedPdfUrl(null);
+        setResolvingPdf(false);
+        return;
+      }
+      try {
+        const url = await resolvePdfUrl(paper);
+        if (!cancelled) {
+          setResolvedPdfUrl(url);
+        }
+      } catch (err) {
+        console.error("Failed to resolve PDF url:", err);
+      } finally {
+        if (!cancelled) setResolvingPdf(false);
+      }
     }
-    if (paper.doi?.includes("arXiv") || paper.doi?.includes("10.48550/arXiv.")) {
-      const match = paper.doi.match(/\d{4}\.\d{4,5}/);
-      if (match) return `https://arxiv.org/pdf/${match[0]}.pdf`;
-    }
-    return null;
-  }, [paper]);
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [paper?.id, paper?.content, paper?.file_url, paper?.source_url]);
 
   const [isPdfMode, setIsPdfMode] = useState<boolean>(true);
 
   useEffect(() => {
-    if (paper?.kind === "pdf" || pdfUrl) {
+    if (resolvedPdfUrl || paper?.kind === "pdf") {
       setIsPdfMode(true);
     } else {
       setIsPdfMode(false);
     }
-  }, [paper?.kind, pdfUrl]);
+  }, [paper?.kind, resolvedPdfUrl]);
 
   // Parse markdown paper into paginated academic sheets
   const pages: ParsedPage[] = useMemo(() => {
-    if (!paper || paper.kind === "pdf") return [];
+    if (!paper || resolvedPdfUrl) return [];
 
-    const blocks = paper.content.split(/\n\n+/);
+    const textContent = paper.content || "";
+    if (!textContent || textContent.startsWith("http://") || textContent.startsWith("https://")) {
+      return [];
+    }
+
+    const blocks = textContent.split(/\n\n+/);
+
     const parsedSections: Array<{
       id: string;
       level: number;
@@ -414,43 +438,18 @@ export function PaperWorkspace({
             <span>Note</span>
           </button>
 
-          {/* Explain Selection via AI */}
-          <button
-            className="button primary"
-            style={{ height: 26, padding: "0 8px", fontSize: 11, gap: 4 }}
-            onClick={() => {
-              onAskAi(`Explain this passage from the paper in clear terms:\n"${selectedText}"`);
-              setSelectionBox(null);
-            }}
-            title="Explain this excerpt with AI"
-          >
-            <Sparkles size={11} />
-            <span>Explain</span>
-          </button>
-
-          {/* Ask AI Contextual Question */}
-          <button
-            className="button ghost"
-            style={{ height: 26, padding: "0 7px", fontSize: 11 }}
-            onClick={() => {
-              onAskAi(`Regarding the statement: "${selectedText}"\nWhat are the primary implications?`);
-              setSelectionBox(null);
-            }}
-          >
-            Ask AI
-          </button>
-
           {/* Copy passage */}
           <button
             className="button ghost"
-            style={{ height: 26, width: 26, padding: 0 }}
+            style={{ height: 26, padding: "0 8px", fontSize: 11, gap: 4 }}
             onClick={() => {
-              navigator.clipboard.writeText(`"${selectedText}" — ${paper.title}`);
+              void navigator.clipboard.writeText(`"${selectedText}" — ${paper.title}`);
               setSelectionBox(null);
             }}
-            title="Copy text with citation"
+            title="Copy text"
           >
             <Copy size={11} />
+            <span>Copy</span>
           </button>
         </div>
       )}
@@ -546,8 +545,8 @@ export function PaperWorkspace({
         ref={containerRef}
         style={{
           flex: 1,
-          overflowY: isPdfMode && pdfUrl ? "hidden" : "auto",
-          padding: isPdfMode && pdfUrl ? 0 : "32px 20px 80px",
+          overflowY: isPdfMode && resolvedPdfUrl ? "hidden" : "auto",
+          padding: isPdfMode && resolvedPdfUrl ? 0 : "32px 20px 80px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -558,7 +557,23 @@ export function PaperWorkspace({
         }}
         onMouseUp={handleMouseUp}
       >
-        {isPdfMode && pdfUrl ? (
+        {resolvingPdf ? (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <Loader2 size={24} className="animate-spin" style={{ color: "var(--scholar-accent)" }} />
+            <span style={{ fontSize: 13 }}>Loading PDF document...</span>
+          </div>
+        ) : resolvedPdfUrl ? (
           /* Direct Full-Bleed PDF Viewer */
           <div
             style={{
@@ -567,23 +582,25 @@ export function PaperWorkspace({
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              background: "#2a2d30",
+              background: "#18181b",
+              position: "relative",
             }}
           >
             <iframe
-              src={pdfUrl}
+              src={resolvedPdfUrl}
               style={{
                 width: "100%",
                 height: "100%",
                 border: 0,
                 flex: 1,
               }}
-              title={paper.title}
+              title={paper?.title || "PDF Document"}
             />
           </div>
-        ) : (
+        ) : pages.length > 0 ? (
           /* Rendered Paginated Academic Sheets */
           pages.map((page) => (
+
             <div
               key={page.pageNumber}
               data-page={page.pageNumber}
@@ -868,190 +885,82 @@ export function PaperWorkspace({
               </div>
             </div>
           ))
+        ) : (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 40,
+              color: "var(--muted-foreground)",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ fontSize: 15, fontWeight: 650, color: "var(--foreground)", margin: 0 }}>
+              {paper.title}
+            </h3>
+            <p style={{ fontSize: 13, margin: 0, maxWidth: 440, textAlign: "center" }}>
+              {paper.source_url
+                ? "Document is available via the source link below."
+                : "No preview or text content available for this document."}
+            </p>
+            {paper.source_url && (
+              <a
+                href={paper.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button primary"
+                style={{ height: 32, fontSize: 12, textDecoration: "none", gap: 6 }}
+              >
+                <ExternalLink size={13} />
+                <span>Open Source Document</span>
+              </a>
+            )}
+          </div>
         )}
+
       </div>
 
-      {/* Bottom Compact Reader Toolbar */}
-      <footer
-        className="reader-toolbar"
-        style={{
-          height: 38,
-          borderTop: "1px solid var(--border)",
-          background: "var(--card)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 14px",
-          zIndex: 30,
-        }}
-      >
-        {/* Left: Page Navigator (when in Text mode) or Status Indicator (when in PDF mode) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {!isPdfMode ? (
-            <>
-              <button
-                className="button ghost"
-                style={{ height: 26, width: 26, padding: 0 }}
-                disabled={activePage <= 1}
-                onClick={() => scrollToPage(Math.max(1, activePage - 1))}
-                title="Previous page"
-              >
-                <ChevronLeft size={14} />
-              </button>
-
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  fontWeight: 600,
-                  minWidth: 70,
-                  textAlign: "center",
-                }}
-              >
-                Page {activePage} / {totalPages}
-              </span>
-
-              <button
-                className="button ghost"
-                style={{ height: 26, width: 26, padding: 0 }}
-                disabled={activePage >= totalPages}
-                onClick={() => scrollToPage(Math.min(totalPages, activePage + 1))}
-                title="Next page"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </>
-          ) : (
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "var(--font-mono)",
-                color: "var(--muted-foreground)",
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
-              Native PDF Reader Active
-            </span>
-          )}
-        </div>
-
-        {/* Center: PDF Mode toggle & Search */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {pdfUrl && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                background: "var(--secondary)",
-                padding: 2,
-                borderRadius: 6,
-              }}
-            >
-              <button
-                className={`button ghost ${isPdfMode ? "primary" : ""}`}
-                style={{ height: 24, padding: "0 9px", fontSize: 11, borderRadius: 4 }}
-                onClick={() => setIsPdfMode(true)}
-                title="View original PDF document"
-              >
-                📄 PDF
-              </button>
-              <button
-                className={`button ghost ${!isPdfMode ? "primary" : ""}`}
-                style={{ height: 24, padding: "0 9px", fontSize: 11, borderRadius: 4 }}
-                onClick={() => setIsPdfMode(false)}
-                title="View clean text reading sheets"
-              >
-                📝 Text
-              </button>
-            </div>
-          )}
-
-          {!isPdfMode && (
-            <button
-              className={`button ghost ${searchOpen ? "primary" : ""}`}
-              style={{ height: 26, padding: "0 8px", fontSize: 11, gap: 5 }}
-              onClick={() => setSearchOpen(!searchOpen)}
-              title="Search text in paper"
-            >
-              <Search size={12} />
-              <span>Search</span>
-            </button>
-          )}
-        </div>
-
-        {/* Right: Zoom & Layout toggles */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {/* Zoom Out */}
+      {/* Minimal clean pagination only when reading multi-page text */}
+      {!isPdfMode && totalPages > 1 && (
+        <footer
+          style={{
+            height: 34,
+            borderTop: "1px solid var(--border)",
+            background: "var(--card)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "0 14px",
+            zIndex: 30,
+          }}
+        >
           <button
             className="button ghost"
             style={{ height: 26, width: 26, padding: 0 }}
-            onClick={() => setZoomLevel((z) => Math.max(75, z - 10))}
-            title="Zoom out"
+            disabled={activePage <= 1}
+            onClick={() => scrollToPage(Math.max(1, activePage - 1))}
+            title="Previous page"
           >
-            <ZoomOut size={13} />
+            <ChevronLeft size={14} />
           </button>
-
-          <span
-            style={{
-              fontSize: 11,
-              fontFamily: "var(--font-mono)",
-              minWidth: 42,
-              textAlign: "center",
-            }}
-          >
-            {zoomLevel}%
+          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+            Page {activePage} of {totalPages}
           </span>
-
-          {/* Zoom In */}
           <button
             className="button ghost"
             style={{ height: 26, width: 26, padding: 0 }}
-            onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
-            title="Zoom in"
+            disabled={activePage >= totalPages}
+            onClick={() => scrollToPage(Math.min(totalPages, activePage + 1))}
+            title="Next page"
           >
-            <ZoomIn size={13} />
+            <ChevronRight size={14} />
           </button>
-
-          {/* Reset Zoom */}
-          <button
-            className="button ghost"
-            style={{ height: 26, padding: "0 6px", fontSize: 10.5 }}
-            onClick={() => {
-              setZoomLevel(100);
-              setFitWidth(false);
-            }}
-            title="Reset to 100%"
-          >
-            100%
-          </button>
-
-          {/* Fit Width toggle */}
-          <button
-            className={`button ghost ${fitWidth ? "primary" : ""}`}
-            style={{ height: 26, padding: "0 8px", fontSize: 10.5 }}
-            onClick={() => setFitWidth(!fitWidth)}
-            title="Fit to workspace width"
-          >
-            Fit Width
-          </button>
-
-          {/* Fullscreen */}
-          {onToggleFullscreen && (
-            <button
-              className={`button ghost ${isFullscreen ? "primary" : ""}`}
-              style={{ height: 26, width: 26, padding: 0 }}
-              onClick={onToggleFullscreen}
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-            </button>
-          )}
-        </div>
-      </footer>
+        </footer>
+      )}
     </main>
   );
 }

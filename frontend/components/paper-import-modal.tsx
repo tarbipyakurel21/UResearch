@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { BookOpen, Check, FileUp, Globe, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { BookOpen, Check, FileUp, Loader2, Upload, X } from "lucide-react";
 import { generateId } from "@/lib/utils/ids";
+import { extractPdfMetadata } from "@/lib/utils/pdf-metadata";
 import { savePaper } from "@/lib/persistence/papers";
+import { savePdfBlob, setPdfBlobUrl } from "@/lib/persistence/pdf-blobs";
+
 import { useUploadThing } from "@/lib/uploadthing";
 import { parseZoteroExport } from "@/lib/zotero/import";
-import { SAMPLE_PAPERS } from "@/lib/sample-papers";
 import type { Paper } from "@/types/paper";
 
 interface PaperImportModalProps {
@@ -16,13 +18,12 @@ interface PaperImportModalProps {
 }
 
 export function PaperImportModal({ open, onClose, onPaperImported }: PaperImportModalProps) {
-  const [tab, setTab] = useState<"upload" | "arxiv" | "zotero" | "sample">("upload");
+  const [tab, setTab] = useState<"upload" | "zotero">("upload");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [arxivQuery, setArxivQuery] = useState("");
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zoteroInputRef = useRef<HTMLInputElement>(null);
   const { startUpload, isUploading } = useUploadThing("paperPdf");
@@ -37,11 +38,19 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
       if (!isPdf) throw new Error("Please select a PDF file.");
 
-      let pdfUrl = "";
+      const extracted = await extractPdfMetadata(file);
+      const paperId = generateId();
+      const localBlobUrl = typeof window !== "undefined" ? URL.createObjectURL(file) : "";
+      await savePdfBlob(paperId, file);
+      if (localBlobUrl) {
+        setPdfBlobUrl(paperId, localBlobUrl);
+      }
+
+      let remoteUrl = "";
       try {
         const uploaded = await startUpload([file]);
         if (uploaded?.[0]?.ufsUrl) {
-          pdfUrl = uploaded[0].ufsUrl;
+          remoteUrl = uploaded[0].ufsUrl;
           try {
             await fetch("/api/papers", {
               method: "POST",
@@ -49,7 +58,7 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
               body: JSON.stringify({
                 key: uploaded[0].key,
                 url: uploaded[0].ufsUrl,
-                filename: uploaded[0].name,
+                filename: `${extracted.title}.pdf`,
                 content_type: uploaded[0].type,
                 size: uploaded[0].size,
               }),
@@ -62,25 +71,20 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
         // Fallback to local offline reading
       }
 
-      if (!pdfUrl) {
-        pdfUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error("Could not read local PDF file."));
-          reader.readAsDataURL(file);
-        });
-      }
+      const finalUrl = remoteUrl || localBlobUrl;
 
       const paper: Paper = {
-        id: generateId(),
-        title: file.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " "),
-        authors: ["Research Document"],
+        id: paperId,
+        title: extracted.title,
+        authors: extracted.authors,
+        doi: extracted.doi,
         kind: "pdf",
-        content: pdfUrl,
-        source_url: pdfUrl.startsWith("http") ? pdfUrl : undefined,
+        content: finalUrl,
+        source_url: remoteUrl || undefined,
+        file_url: finalUrl,
         reading_status: "unread",
         progress: 0,
-        tags: ["PDF", "Document"],
+        tags: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -99,81 +103,19 @@ export function PaperImportModal({ open, onClose, onPaperImported }: PaperImport
     }
   }
 
-  async function handleArxivImport() {
-    if (!arxivQuery.trim()) return;
-    setError("");
-    setLoading(true);
-    try {
-      // Clean query (extract id from url or bare id e.g. 1706.03762)
-      const cleanId = arxivQuery.trim().replace(/^.*arxiv\.org\/(abs|pdf)\//, "").replace(/\.pdf$/, "");
-      
-      // Look up known pre-loaded rich papers if matching, or create a grounded representation
-      const matched = SAMPLE_PAPERS.find(p => p.source_url?.includes(cleanId) || p.doi?.includes(cleanId));
-      if (matched) {
-        const newPaper: Paper = {
-          ...matched,
-          id: generateId(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        await savePaper(newPaper);
-        setSuccess(`Fetched and imported "${newPaper.title}"!`);
-        onPaperImported?.(newPaper);
-        setTimeout(() => { onClose(); setSuccess(""); }, 800);
-        return;
-      }
-
-      // Default high-quality structured arXiv paper structure
-      const paper: Paper = {
-        id: generateId(),
-        title: `arXiv Paper: ${cleanId}`,
-        authors: ["arXiv Researcher"],
-        venue: "arXiv Preprint",
-        year: new Date().getFullYear(),
-        source_url: `https://arxiv.org/abs/${cleanId}`,
-        kind: "text",
-        tags: ["arXiv", "Research"],
-        reading_status: "unread",
-        progress: 0,
-        abstract: `Preprint paper retrieved from arXiv under accession identifier ${cleanId}. Full text and citations can be annotated and verified within the OpenPaper workbench.`,
-        content: `# arXiv Paper ${cleanId}
-
-## Abstract
-Preprint paper retrieved from arXiv under accession identifier ${cleanId}.
-
-## 1. Introduction & Background
-This paper investigates state-of-the-art methodology, algorithmic foundations, and empirical results. You can highlight passages, write margin notes, and query the OpenPaper literature review assistant for verifiable citations.
-
-## 2. Methodology & Experiments
-The authors formulate a rigorous experimental setup with control baselines, quantitative benchmarks, and error analysis.
-
-## 3. Findings
-Empirical verification confirms competitive performance over prior baselines with improved efficiency.`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      await savePaper(paper);
-      setSuccess(`Imported arXiv:${cleanId}!`);
-      onPaperImported?.(paper);
-      setTimeout(() => { onClose(); setSuccess(""); }, 800);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import from arXiv.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleZoteroImport(file?: File) {
     if (!file) return;
     setError("");
     setLoading(true);
     try {
-      const items = parseZoteroExport(JSON.parse(await file.text()));
-      if (!items.length) throw new Error("No Zotero items found in file.");
-      
+      const content = await file.text();
+      const items = parseZoteroExport(content);
+      if (!items.length) {
+        throw new Error("No readable items found in this Zotero JSON export.");
+      }
+
       let count = 0;
-      for (const item of items.slice(0, 10)) {
+      for (const item of items) {
         const paper: Paper = {
           id: generateId(),
           title: item.title,
@@ -189,7 +131,7 @@ Empirical verification confirms competitive performance over prior baselines wit
           progress: 0,
           content: `# ${item.title}\n\n${item.authors.join(", ")} (${item.year ?? "n.d."})\n\n## Abstract\n${item.abstract ?? "No abstract provided in Zotero export."}\n\n## Notes\nImported from Zotero collection.`,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         await savePaper(paper);
         count++;
@@ -197,7 +139,10 @@ Empirical verification confirms competitive performance over prior baselines wit
       }
 
       setSuccess(`Imported ${count} papers from Zotero library!`);
-      setTimeout(() => { onClose(); setSuccess(""); }, 900);
+      setTimeout(() => {
+        onClose();
+        setSuccess("");
+      }, 900);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Zotero import failed.");
     } finally {
@@ -205,32 +150,15 @@ Empirical verification confirms competitive performance over prior baselines wit
     }
   }
 
-  async function handleLoadSamplePapers() {
-    setLoading(true);
-    setError("");
-    try {
-      for (const sample of SAMPLE_PAPERS) {
-        await savePaper(sample);
-      }
-      setSuccess("Added 3 foundational papers (Attention, RAG, GPT-3) to your library!");
-      onPaperImported?.(SAMPLE_PAPERS[0]);
-      setTimeout(() => { onClose(); setSuccess(""); }, 800);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load sample papers.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="panel-head">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <BookOpen size={18} style={{ color: "var(--accent)" }} />
             <div>
               <h2 style={{ fontSize: 16 }}>Import Research Paper</h2>
-              <span className="hint">Store locally in your private UResearch workspace</span>
+              <span className="hint">Store locally in your private workspace</span>
             </div>
           </div>
           <button className="button ghost" onClick={onClose} style={{ padding: 4, minHeight: "auto" }}>
@@ -238,37 +166,22 @@ Empirical verification confirms competitive performance over prior baselines wit
           </button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border-subtle)", padding: "0 18px", gap: 8 }}>
+        {/* Tabs: Strictly PDF / File and Zotero Export */}
+        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 18px", gap: 8 }}>
           <button
             onClick={() => setTab("upload")}
             style={{
               padding: "10px 14px",
               border: 0,
               background: "transparent",
-              color: tab === "upload" ? "var(--accent)" : "var(--ink-secondary)",
+              color: tab === "upload" ? "var(--accent)" : "var(--muted-foreground)",
               borderBottom: tab === "upload" ? "2px solid var(--accent)" : "2px solid transparent",
               fontWeight: 600,
               fontSize: 13,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
-            PDF / File
-          </button>
-          <button
-            onClick={() => setTab("arxiv")}
-            style={{
-              padding: "10px 14px",
-              border: 0,
-              background: "transparent",
-              color: tab === "arxiv" ? "var(--accent)" : "var(--ink-secondary)",
-              borderBottom: tab === "arxiv" ? "2px solid var(--accent)" : "2px solid transparent",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer"
-            }}
-          >
-            arXiv Identifier
+            Import PDF / File
           </button>
           <button
             onClick={() => setTab("zotero")}
@@ -276,40 +189,41 @@ Empirical verification confirms competitive performance over prior baselines wit
               padding: "10px 14px",
               border: 0,
               background: "transparent",
-              color: tab === "zotero" ? "var(--accent)" : "var(--ink-secondary)",
+              color: tab === "zotero" ? "var(--accent)" : "var(--muted-foreground)",
               borderBottom: tab === "zotero" ? "2px solid var(--accent)" : "2px solid transparent",
               fontWeight: 600,
               fontSize: 13,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             Zotero Export
-          </button>
-          <button
-            onClick={() => setTab("sample")}
-            style={{
-              padding: "10px 14px",
-              border: 0,
-              background: "transparent",
-              color: tab === "sample" ? "var(--accent)" : "var(--ink-secondary)",
-              borderBottom: tab === "sample" ? "2px solid var(--accent)" : "2px solid transparent",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer"
-            }}
-          >
-            Sample Papers
           </button>
         </div>
 
         <div className="panel-body">
           {error && (
-            <div className="notice" style={{ marginBottom: 16, borderColor: "var(--danger)", background: "var(--danger-soft)", color: "var(--danger)" }}>
+            <div
+              className="notice"
+              style={{
+                marginBottom: 16,
+                borderColor: "var(--danger)",
+                background: "rgba(239, 68, 68, 0.1)",
+                color: "var(--danger)",
+              }}
+            >
               {error}
             </div>
           )}
           {success && (
-            <div className="notice" style={{ marginBottom: 16, borderColor: "var(--success)", background: "var(--success-soft)", color: "var(--success)" }}>
+            <div
+              className="notice"
+              style={{
+                marginBottom: 16,
+                borderColor: "var(--success)",
+                background: "rgba(16, 185, 129, 0.1)",
+                color: "var(--success)",
+              }}
+            >
               <Check size={16} /> {success}
             </div>
           )}
@@ -325,7 +239,10 @@ Empirical verification confirms competitive performance over prior baselines wit
               />
               <div
                 className={`dropzone ${isDragging ? "drag" : ""}`}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -333,45 +250,27 @@ Empirical verification confirms competitive performance over prior baselines wit
                   void handleFileUpload(e.dataTransfer.files?.[0]);
                 }}
                 onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: "2px dashed var(--border)",
+                  borderRadius: 8,
+                  padding: "36px 20px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: isDragging ? "var(--secondary)" : "transparent",
+                }}
               >
                 {loading || isUploading ? (
                   <Loader2 size={32} className="animate-spin" style={{ margin: "0 auto 10px", color: "var(--accent)" }} />
                 ) : (
-                  <Upload size={32} style={{ margin: "0 auto 10px", color: "var(--ink-muted)" }} />
+                  <Upload size={32} style={{ margin: "0 auto 10px", color: "var(--muted-foreground)" }} />
                 )}
-                <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 4 }}>
-                  Click to browse or drag & drop research paper
+                <div style={{ fontWeight: 650, fontSize: 14, marginBottom: 4 }}>
+                  Click to select or drag & drop PDF
                 </div>
-                <div className="hint">PDF only · uploaded securely with UploadThing (max 32 MB)</div>
+                <div className="hint" style={{ fontSize: 12 }}>
+                  PDF format (max 32 MB)
+                </div>
               </div>
-            </div>
-          )}
-
-          {tab === "arxiv" && (
-            <div className="field">
-              <label htmlFor="arxiv-input">arXiv ID or URL</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  id="arxiv-input"
-                  className="input"
-                  placeholder="e.g. 1706.03762 or https://arxiv.org/abs/2005.11401"
-                  value={arxivQuery}
-                  onChange={(e) => setArxivQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleArxivImport(); }}
-                />
-                <button
-                  className="button primary"
-                  disabled={loading || !arxivQuery.trim()}
-                  onClick={() => void handleArxivImport()}
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-                  Fetch Paper
-                </button>
-              </div>
-              <span className="hint">
-                Retrieves metadata, abstract, and sections ready for verifiable citations and literature analysis.
-              </span>
             </div>
           )}
 
@@ -384,37 +283,17 @@ Empirical verification confirms competitive performance over prior baselines wit
                 accept=".json"
                 onChange={(e) => void handleZoteroImport(e.target.files?.[0])}
               />
-              <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
-                Export your Zotero library as <strong>Zotero JSON</strong> or <strong>CSL JSON</strong> and import it here. Your personal API keys are never required or transmitted.
+              <p className="hint" style={{ marginTop: 0, marginBottom: 14, fontSize: 12.5, lineHeight: 1.5 }}>
+                Export your Zotero library as <strong>Zotero JSON</strong> or <strong>CSL JSON</strong> and import it here.
               </p>
               <button
                 className="button primary"
                 onClick={() => zoteroInputRef.current?.click()}
                 disabled={loading}
+                style={{ height: 34, fontSize: 12.5 }}
               >
                 {loading ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-                Select Zotero JSON file
-              </button>
-            </div>
-          )}
-
-          {tab === "sample" && (
-            <div>
-              <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-secondary)" }}>
-                Pre-load foundational papers into your UResearch library to explore side-by-side paper reading and AI chat:
-              </p>
-              <ul style={{ margin: "0 0 18px", paddingLeft: 20, fontSize: 13, lineHeight: 1.6 }}>
-                <li><strong>Attention Is All You Need</strong> (Transformer architecture, NeurIPS 2017)</li>
-                <li><strong>Retrieval-Augmented Generation</strong> (RAG for Knowledge-Intensive NLP, NeurIPS 2020)</li>
-                <li><strong>Language Models are Few-Shot Learners</strong> (GPT-3 scaling & in-context learning, 2020)</li>
-              </ul>
-              <button
-                className="button primary"
-                onClick={() => void handleLoadSamplePapers()}
-                disabled={loading}
-              >
-                {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                Load Sample Papers & Extraction Matrix
+                Select Zotero JSON File
               </button>
             </div>
           )}

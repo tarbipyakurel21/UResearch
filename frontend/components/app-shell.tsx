@@ -3,32 +3,22 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BarChart3,
-  BookOpen,
-  FilePlus,
-  Moon,
-  PanelLeft,
-  Search,
-  Sun,
-  User,
-} from "lucide-react";
-import { useTheme } from "./theme-provider";
+import { FilePlus, LogOut, Search, User } from "lucide-react";
 import { CommandPalette } from "./command-palette";
 import { PaperImportModal } from "./paper-import-modal";
 import { AuthModal } from "./auth/auth-modal";
 import { listPapers } from "@/lib/persistence/papers";
 
 const navigationItems = [
-  { label: "Library", href: "/library", icon: BookOpen, match: ["/library", "/papers", "/understand", "/discover"] },
-  { label: "Visualization", href: "/visualize", icon: BarChart3, match: ["/visualize", "/data"] },
+  { label: "Library", href: "/library", match: ["/library", "/papers"] },
+  { label: "Ask", href: "/ask", match: ["/ask"] },
+  { label: "Discover", href: "/discover", match: ["/discover", "/understand"] },
+  { label: "Projects", href: "/projects", match: ["/projects"] },
+  { label: "Visualization", href: "/visualize", match: ["/visualize", "/data"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { resolvedTheme, toggleTheme } = useTheme();
-
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [commandOpen, setCommandOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [paperCount, setPaperCount] = useState(0);
@@ -72,117 +62,94 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("uresearch_auth_changed", onAuthChanged);
   }, []);
 
-  const activeItem = navigationItems.find((item) =>
-    item.match.some((m) => pathname.startsWith(m))
-  );
-
-  // For landing page (/), render without the sidebar frame
-  if (pathname === "/") {
-    return <>{children}</>;
-  }
-
   return (
-    <div className="app-shell-container">
-      {/* Sidebar */}
-      <aside className={`uresearch-sidebar ${sidebarOpen ? "" : "collapsed"}`}>
-        {/* Brand */}
-        <div
-          style={{
-            height: 52,
-            padding: sidebarOpen ? "0 16px" : "0 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: sidebarOpen ? "space-between" : "center",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--background)",
+        color: "var(--foreground)",
+      }}
+    >
+      {/* Unified Landing Page Style Navbar for All Pages */}
+      <header
+        style={{
+          height: 54,
+          padding: "0 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: "1px solid var(--border)",
+          position: "sticky",
+          top: 0,
+          background: "var(--background)",
+          zIndex: 50,
+        }}
+      >
+        {/* Left: UResearch brand with new logo + Library & Visualization nav options */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Link
-            href="/library"
+            href="/"
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
               textDecoration: "none",
               color: "inherit",
+              fontWeight: 650,
+              fontSize: 14.5,
+              letterSpacing: "-0.01em",
             }}
           >
-            <div
+            <img
+              src="/uresearch-logo.png"
+              alt="UResearch"
               style={{
-                width: 26,
-                height: 26,
+                width: 24,
+                height: 24,
                 borderRadius: 6,
-                background: "var(--foreground)",
-                color: "var(--background)",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 700,
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
+                objectFit: "cover",
               }}
-            >
-              UR
-            </div>
-            {sidebarOpen && (
-              <span style={{ fontWeight: 650, fontSize: 14, letterSpacing: "-0.015em" }}>
-                UResearch
-              </span>
-            )}
+            />
+            <span>UResearch</span>
           </Link>
 
-          {sidebarOpen && (
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="button ghost"
-              style={{ padding: 4, height: 26, width: 26 }}
-              title="Collapse sidebar"
-            >
-              <PanelLeft size={14} />
-            </button>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <div style={{ flex: 1, padding: "10px 8px", overflowY: "auto" }}>
-          <nav style={{ display: "grid", gap: 3 }}>
+          <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
             {navigationItems.map((item) => {
-              const Icon = item.icon;
               const isActive = item.match.some((m) => pathname.startsWith(m));
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  title={item.label}
+                  className="button ghost"
                   style={{
+                    height: 32,
+                    padding: "0 11px",
+                    fontSize: 13,
+                    borderRadius: 6,
+                    background: isActive ? "var(--secondary)" : "transparent",
+                    color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
+                    fontWeight: isActive ? 650 : 500,
+                    textDecoration: "none",
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: sidebarOpen ? "8px 10px" : "8px 0",
-                    justifyContent: sidebarOpen ? "flex-start" : "center",
-                    borderRadius: 6,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: isActive ? 600 : 500,
-                    color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
-                    background: isActive ? "var(--secondary)" : "transparent",
-                    transition: "all 0.1s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.background = "var(--secondary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) e.currentTarget.style.background = "transparent";
+                    gap: 6,
                   }}
                 >
-                  <Icon
-                    size={16}
-                    style={{
-                      color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  {sidebarOpen && <span style={{ flex: 1 }}>{item.label}</span>}
-                  {sidebarOpen && item.label === "Library" && paperCount > 0 && (
-                    <span className="badge">{paperCount}</span>
+                  <span>{item.label}</span>
+                  {item.label === "Library" && paperCount > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: "0 5px",
+                        borderRadius: 999,
+                        background: isActive ? "var(--accent)" : "var(--border)",
+                        color: isActive ? "var(--accent-foreground)" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {paperCount}
+                    </span>
                   )}
                 </Link>
               );
@@ -190,137 +157,167 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            padding: sidebarOpen ? "10px 14px" : "10px",
-            borderTop: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: sidebarOpen ? "space-between" : "center",
-          }}
-        >
-          {sidebarOpen ? (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)" }}>
+        {/* Right: Search trigger [ ⌘K ] and User Info / Login */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexShrink: 0 }}>
+          <div
+            onClick={() => setCommandOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              height: 32,
+              padding: "0 10px",
+              borderRadius: 6,
+              border: "1px solid var(--border)",
+              background: "var(--secondary)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              width: "auto",
+              minWidth: 140,
+              maxWidth: 220,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.background = "var(--card)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.background = "var(--secondary)";
+            }}
+          >
+            <Search size={13} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--muted-foreground)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              Search...
+            </span>
+            <kbd
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-mono)",
+                background: "var(--card)",
+                padding: "1px 5px",
+                borderRadius: 4,
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+                flexShrink: 0,
+              }}
+            >
+              ⌘K
+            </kbd>
+          </div>
+
+          {/* User Profile Pill or Sign In Trigger */}
+          {user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  height: 32,
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  background: "var(--secondary)",
+                  border: "1px solid var(--border)",
+                  fontSize: 12,
+                  fontWeight: 550,
+                }}
+                title={`Signed in as ${user.email}`}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "var(--scholar-accent)",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  {user.name ? user.name[0].toUpperCase() : "U"}
+                </div>
                 <span
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "var(--success)",
+                    maxWidth: 100,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    color: "var(--foreground)",
                   }}
-                />
-                <span>Local & Private</span>
+                >
+                  {user.name || user.email.split("@")[0]}
+                </span>
               </div>
+
               <button
-                onClick={toggleTheme}
                 className="button ghost"
-                style={{ padding: 4, height: 26, width: 26 }}
-                title="Toggle Theme"
+                style={{
+                  height: 32,
+                  width: 32,
+                  padding: 0,
+                  color: "var(--muted-foreground)",
+                  borderRadius: 6,
+                }}
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("uresearch_user");
+                    setUser(null);
+                    window.dispatchEvent(new Event("uresearch_auth_changed"));
+                  } catch {
+                    // ignore
+                  }
+                }}
+                title="Sign out"
               >
-                {resolvedTheme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+                <LogOut size={13} />
               </button>
-            </>
+            </div>
           ) : (
             <button
-              onClick={toggleTheme}
               className="button ghost"
-              style={{ padding: 4, height: 26, width: 26 }}
-              title="Toggle Theme"
+              style={{
+                height: 32,
+                padding: "0 10px",
+                fontSize: 12.5,
+                borderRadius: 6,
+                gap: 6,
+                fontWeight: 550,
+                color: "var(--foreground)",
+              }}
+              onClick={() => setAuthOpen(true)}
             >
-              {resolvedTheme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              <User size={13} style={{ color: "var(--muted-foreground)" }} />
+              <span>Sign In</span>
             </button>
           )}
         </div>
-      </aside>
+      </header>
 
-      {/* Main Container */}
-      <div className="uresearch-main">
-        {/* Topbar */}
-        <header className="uresearch-topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="button ghost"
-                style={{ padding: 4, height: 28, width: 28 }}
-                title="Expand sidebar"
-              >
-                <PanelLeft size={15} />
-              </button>
-            )}
-            <span style={{ fontSize: 13, fontWeight: 600 }}>
-              {activeItem?.label ?? "UResearch"}
-            </span>
-          </div>
+      {/* Main Page Content */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", width: "100%", minWidth: 0 }}>
+        {children}
+      </main>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={() => setCommandOpen(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 10px",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                background: "var(--card)",
-                color: "var(--muted-foreground)",
-                fontSize: 12,
-                cursor: "pointer",
-                height: 30,
-              }}
-            >
-              <Search size={13} />
-              <span>Search...</span>
-              <kbd
-                style={{
-                  fontSize: 10,
-                  fontFamily: "var(--font-mono)",
-                  padding: "1px 4px",
-                  borderRadius: 3,
-                  background: "var(--secondary)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                ⌘K
-              </kbd>
-            </button>
-
-            <button
-              className="button primary"
-              style={{ height: 30, fontSize: 12, padding: "0 10px" }}
-              onClick={() => setImportOpen(true)}
-            >
-              <FilePlus size={13} /> Import Paper
-            </button>
-
-            {/* User Profile / Sign In */}
-            <button
-              className="button ghost"
-              style={{ height: 30, padding: "0 8px", fontSize: 12, gap: 5 }}
-              onClick={() => setAuthOpen(true)}
-              title={user ? `Signed in as ${user.name}` : "Sign In / Sign Up"}
-            >
-              <User size={13} style={{ color: user ? "var(--scholar-accent)" : "inherit" }} />
-              <span>{user ? user.name : "Sign In"}</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Content */}
-        <main>{children}</main>
-      </div>
-
-      {/* Command Palette */}
+      {/* Global Command Palette */}
       <CommandPalette
         open={commandOpen}
         onClose={() => setCommandOpen(false)}
         onOpenImport={() => setImportOpen(true)}
       />
 
-      {/* Paper Import Modal */}
+      {/* Global Paper Import Modal */}
       <PaperImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
